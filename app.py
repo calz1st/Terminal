@@ -186,10 +186,10 @@ def render_chart(symbol):
     """
     components.html(html, height=600)
 
-def render_economic_calendar():
-    """Embeds Investing.com Calendar Filtered for High Impact (Red) News Only (LONDON TIME)."""
-    # timeZone=4 is London/GMT. timeZone=8 is EST/New York.
-    calendar_url = "https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone=4&lang=1&importance=3"
+def render_economic_calendar(timezone_id):
+    """Embeds Investing.com Calendar with Dynamic Timezone."""
+    # Maps user choice to Investing.com IDs
+    calendar_url = f"https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone={timezone_id}&lang=1&importance=3"
     html = f"""
     <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; height: 800px;">
         <iframe src="{calendar_url}" 
@@ -338,14 +338,21 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminals")
-    st.caption("Update v15.8")
+    st.title("💠 Callums Terminal")
+    st.caption("Update v15.9")
     st.markdown("---")
     api_key = st.text_input("Use API Key to connect to server", type="password")
     
     st.markdown("---")
-    st.subheader("⚙️ Model Selector")
-    st.info("⚠️ Note: Terminal will auto-connect to most capable server")
+    st.subheader("⚙️ Settings")
+    
+    # 1. TIMEZONE SELECTOR
+    tz_map = {"London (GMT)": 15, "New York (EST)": 8, "Tokyo (JST)": 18, "UTC": 1}
+    selected_tz = st.selectbox("Calendar Timezone:", list(tz_map.keys()), index=0)
+    tz_id = tz_map[selected_tz]
+    
+    st.markdown("---")
+    st.subheader("🤖 Model Selector")
     
     available_models = []
     if api_key:
@@ -483,7 +490,8 @@ with tab3:
 
 with tab4:
     st.subheader("High Impact Economic Events")
-    render_economic_calendar()
+    # Pass the selected ID from the sidebar
+    render_economic_calendar(tz_id)
 
 with tab5:
     st.subheader("Live Market Data")
