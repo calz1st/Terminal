@@ -71,46 +71,62 @@ st.markdown("""
 
 # --- 3. HELPER FUNCTIONS ---
 
-def get_market_data(category):
-    """Fetches real-time prices based on selected category."""
+def get_market_data(tickers_dict):
+    """Fetches real-time prices for a dictionary of {Name: Symbol}."""
     try:
         data = {}
-        
-        # DEFINING THE MARKET BASKETS
-        market_map = {
-            "Standard": {
-                "BTC": "BTC-USD", "EUR": "EURUSD=X", "USD": "DX-Y.NYB", "GOLD": "GC=F", "OIL": "CL=F"
-            },
-            "Crypto": {
-                "BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD", "XRP": "XRP-USD", "DOGE": "DOGE-USD"
-            },
-            "Forex": {
-                "EUR": "EURUSD=X", "GBP": "GBPUSD=X", "JPY": "JPY=X", "CHF": "CHF=X", "CAD": "CAD=X"
-            },
-            "Tech Stocks": {
-                "NVDA": "NVDA", "TSLA": "TSLA", "AAPL": "AAPL", "MSFT": "MSFT", "GOOG": "GOOG"
-            },
-            "Indices": {
-                "S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI", "VIX": "^VIX", "FTSE": "^FTSE"
-            }
-        }
-        
-        tickers = market_map.get(category, market_map["Standard"])
-        
-        for name, symbol in tickers.items():
-            ticker = yf.Ticker(symbol)
-            # Fast fetch for 1 day history
-            hist = ticker.history(period="1d", interval="1m")
+        for name, symbol in tickers_dict.items():
+            if not symbol: continue # Skip empty inputs
             
-            if not hist.empty:
-                latest = hist['Close'].iloc[-1]
-                open_p = hist['Open'].iloc[0]
-                change = ((latest - open_p) / open_p) * 100
-                data[name] = (latest, change)
-            else:
+            try:
+                ticker = yf.Ticker(symbol)
+                # Fast fetch
+                hist = ticker.history(period="1d", interval="1m")
+                
+                if not hist.empty:
+                    latest = hist['Close'].iloc[-1]
+                    open_p = hist['Open'].iloc[0]
+                    change = ((latest - open_p) / open_p) * 100
+                    data[name] = (latest, change)
+                else:
+                    # Fallback if 1m data fails (common for indices)
+                    hist_long = ticker.history(period="2d")
+                    if not hist_long.empty:
+                        latest = hist_long['Close'].iloc[-1]
+                        prev = hist_long['Close'].iloc[0]
+                        change = ((latest - prev) / prev) * 100
+                        data[name] = (latest, change)
+                    else:
+                        data[name] = (0.0, 0.0)
+            except:
                 data[name] = (0.0, 0.0)
+                
         return data
     except: return None
+
+def get_symbol_details(key):
+    """Auto-detects icon and formatting based on asset name."""
+    key_upper = key.upper()
+    
+    # Defaults
+    icon = "📈"
+    fmt = "{:.2f}"
+    
+    # Icons
+    if "BTC" in key_upper: icon = "₿"
+    elif "ETH" in key_upper: icon = "Ξ"
+    elif "EUR" in key_upper: icon = "💶"
+    elif "GBP" in key_upper: icon = "💷"
+    elif "USD" in key_upper: icon = "💵"
+    elif "JPY" in key_upper: icon = "¥"
+    elif "GOLD" in key_upper or "GC" in key_upper: icon = "⚱️"
+    elif "OIL" in key_upper or "CL" in key_upper: icon = "🛢️"
+    elif "SPX" in key_upper or "500" in key_upper: icon = "🇺🇸"
+    elif "TSLA" in key_upper: icon = "🚗"
+    elif "NVDA" in key_upper: icon = "🤖"
+    elif "AAPL" in key_upper: icon = "🍎"
+    
+    return icon
 
 def render_ticker_bar(data):
     """Generates the horizontal scrollable HTML bar."""
@@ -118,26 +134,16 @@ def render_ticker_bar(data):
     
     html_content = '<div class="ticker-wrap">'
     
-    # Generic icon mapping fallback
-    icon_map = {
-        "BTC": "₿", "ETH": "Ξ", "SOL": "◎", "EUR": "💶", "GBP": "💷", 
-        "USD": "💵", "GOLD": "⚱️", "OIL": "🛢️", "NVDA": "🤖", "TSLA": "🚗",
-        "S&P 500": "🇺🇸", "VIX": "📉"
-    }
-    
     for key, (price, change) in data.items():
         color = "pos" if change >= 0 else "neg"
         arrow = "▲" if change >= 0 else "▼"
         
-        # Smart formatting based on asset price (e.g. BTC vs Forex)
-        if price > 1000:
-            price_str = f"${price:,.0f}"
-        elif price < 2: 
-            price_str = f"{price:.4f}"
-        else:
-            price_str = f"${price:.2f}"
+        # Smart formatting
+        if price > 1000: price_str = f"${price:,.0f}"
+        elif price < 1.5: price_str = f"{price:.4f}"
+        else: price_str = f"${price:.2f}"
             
-        icon = icon_map.get(key, "📈")
+        icon = get_symbol_details(key)
         
         card = f'<div class="ticker-item"><span class="t-label">{icon} {key}</span><span class="t-val">{price_str}</span><span class="t-delta {color}">{arrow} {change:.2f}%</span></div>'
         html_content += card
@@ -181,8 +187,9 @@ def render_chart(symbol):
     components.html(html, height=600)
 
 def render_economic_calendar():
-    """Embeds Investing.com Calendar Filtered for High Impact (Red) News Only."""
-    calendar_url = "https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone=8&lang=1&importance=3"
+    """Embeds Investing.com Calendar Filtered for High Impact (Red) News Only (LONDON TIME)."""
+    # timeZone=4 is London/GMT. timeZone=8 is EST/New York.
+    calendar_url = "https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone=4&lang=1&importance=3"
     html = f"""
     <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; height: 800px;">
         <iframe src="{calendar_url}" 
@@ -206,32 +213,21 @@ def scrape_site(url, limit):
     except: return ""
 
 def list_available_models(api_key):
-    """
-    Diagnostic Tool: Lists all models available to your key.
-    We filter for models that support 'generateContent'.
-    """
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
         response = requests.get(url)
         data = response.json()
-        
-        if 'error' in data:
-            return []
-            
-        # Extract CLEAN names (remove 'models/' prefix)
-        valid_models = [
-            m['name'].replace("models/", "") 
-            for m in data.get('models', []) 
-            if 'generateContent' in m['supportedGenerationMethods']
-        ]
+        if 'error' in data: return []
+        valid_models = [m['name'].replace("models/", "") for m in data.get('models', []) if 'generateContent' in m['supportedGenerationMethods']]
         return valid_models
-    except:
-        return []
+    except: return []
 
 def generate_report(data_dump, mode, api_key, model_choice):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
-    # --- WATERFALL STRATEGY ---
+    # SAFETY DELAY
+    time.sleep(4)
+    
     fallback_chain = [model_choice]
     safe_defaults = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash"]
     for m in safe_defaults:
@@ -255,98 +251,71 @@ def generate_report(data_dump, mode, api_key, model_choice):
         ### 🎯 TRADE PLAN
         (Bull/Bear Scenarios)
         """
-        
     elif mode == "GEO":
         prompt_text = f"""
         ROLE: Geopolitical Risk Strategist.
         TASK: Analyze events through MARKET IMPACT.
         DATA: {data_dump[:15000]}
-        
         OUTPUT FORMAT (Strict Markdown - Insert \\n\\n before every header):
-        
         ### ⚠️ GEOPOLITICAL THREAT ASSESSMENT
         **Current Status:** (Low / Elevated / Critical)
         **Market Focus:** (e.g., "Middle East Tensions")
-        
         ---
         ### 🛢 ENERGY & COMMODITIES
         (Impact on supply chains/Gold demand)
-        
         ---
         ### 🛡 DEFENSE & SECURITY
         (Conflict zone developments)
-        
         ---
         ### 💵 FX & SOVEREIGN RISK
         (USD Safe Haven vs EM Risk)
         """
-
-    else: # FX Mode
+    else: # FX
         prompt_text = f"""
         ROLE: Global Macro Strategist (Forex Desk).
         TASK: Detailed breakdown for the 7 Major Currencies based on the provided data.
         DATA: {data_dump[:15000]}
-        
         OUTPUT FORMAT (Strict Markdown - IMPORTANT: You MUST put TWO NEWLINES (\\n\\n) before every header):
-
         **💵 US DOLLAR INDEX (DXY) & MACRO**
         (Advanced, concise synthesis of DXY structure, Yield Curve dynamics, and Global Liquidity conditions.)
-
         ---
-        
         ### 🇪🇺 EUR/USD
         * **Overview:** (Context & Price Action)
         * **Bias:** (Bullish / Bearish / Neutral)
         * **News Impacts:** (ECB policy, Data releases)
         * **Sentiment:** (Institutional positioning)
-
         ---
-        
         ### 🇬🇧 GBP/USD
         * **Overview:** (Context & Price Action)
         * **Bias:** (Bullish / Bearish / Neutral)
         * **News Impacts:** (BoE policy, UK Data)
         * **Sentiment:** (Institutional positioning)
-
         ---
-        
         ### 🇯🇵 USD/JPY
         * **Overview:** (Context & Price Action)
         * **Bias:** (Bullish / Bearish / Neutral)
         * **News Impacts:** (BoJ interventions, Yield spreads)
         * **Sentiment:** (Carry trade flows)
-
         ---
-        
         ### 🇨🇭 USD/CHF
         * **Overview:** (Safe haven status & SNB)
         * **Bias:** (Direction)
-        
         ---
-        
         ### 🇦🇺 AUD/USD
         * **Overview:** (Commodities & China correlation)
         * **Bias:** (Direction)
-
         ---
-        
         ### 🇨🇦 USD/CAD
         * **Overview:** (Oil correlation & BoC)
         * **Bias:** (Direction)
-
         ---
-        
         ### 🇳🇿 NZD/USD
         * **Overview:** (Agri-commodities & RBNZ)
         * **Bias:** (Direction)
         """
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
-        "safetySettings": safety_settings
-    }
-    
-    # 4. ROBUST RETRY LOOP
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}], "safetySettings": safety_settings}
+
     for model in fallback_chain:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         wait_times = [4, 8]
@@ -358,7 +327,7 @@ def generate_report(data_dump, mode, api_key, model_choice):
                     return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
                 if 'error' in response_json:
                     code = response_json['error'].get('code', 0)
-                    if code == 429 or code == 503:
+                    if code in [429, 503]:
                         time.sleep(wait)
                         continue
                     if code == 404: break 
@@ -369,8 +338,8 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("Update v15.6")
+    st.title("💠 Callums Terminals")
+    st.caption("Update v15.8")
     st.markdown("---")
     api_key = st.text_input("Use API Key to connect to server", type="password")
     
@@ -386,24 +355,19 @@ with st.sidebar:
                 if found:
                     st.session_state['valid_models'] = found
                     st.success(f"Verified: {len(found)} Models Found")
-        
         available_models = st.session_state.get('valid_models', [])
 
     if available_models:
         model_options = available_models
         default_index = 0
         for i, m in enumerate(model_options):
-            if "gemini-2.0-flash" in m and "exp" not in m:
-                default_index = i
-                break
-            elif "gemini-2.0-flash-exp" in m:
-                default_index = i
+            if "gemini-2.0-flash" in m and "exp" not in m: default_index = i; break
+            elif "gemini-2.0-flash-exp" in m: default_index = i
     else:
         model_options = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.5-flash"]
         default_index = 0
 
     model_choice = st.selectbox("Active Model:", model_options, index=default_index)
-    
     st.markdown("---")
     st.success("● NETWORK: SECURE")
 
@@ -411,17 +375,49 @@ with st.sidebar:
 st.title("TERMINAL DASHBOARD 🖥️")
 st.markdown("---")
 
-# MARKET SELECTOR DROPDOWN (Dynamic Tickers)
-selected_market = st.selectbox(
-    "Select Market View:", 
-    ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices"],
-    index=0
-)
+# MARKET SELECTOR + CUSTOM LOGIC
+col_sel, col_space = st.columns([1, 2])
+with col_sel:
+    selected_market = st.selectbox(
+        "Select Market View:", 
+        ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices", "Custom"],
+        index=0
+    )
 
-# LIVE TICKERS (FIXED LAYOUT)
-market = get_market_data(selected_market)
-if market:
-    render_ticker_bar(market)
+# DEFINE MARKET BASKETS
+market_map = {
+    "Standard": {"BTC": "BTC-USD", "EUR": "EURUSD=X", "USD": "DX-Y.NYB", "GOLD": "GC=F", "OIL": "CL=F"},
+    "Crypto": {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD", "XRP": "XRP-USD", "DOGE": "DOGE-USD"},
+    "Forex": {"EUR": "EURUSD=X", "GBP": "GBPUSD=X", "JPY": "JPY=X", "CHF": "CHF=X", "CAD": "CAD=X"},
+    "Tech Stocks": {"NVDA": "NVDA", "TSLA": "TSLA", "AAPL": "AAPL", "MSFT": "MSFT", "GOOG": "GOOG"},
+    "Indices": {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI", "VIX": "^VIX", "FTSE": "^FTSE"}
+}
+
+# LOGIC FOR CUSTOM TICKERS
+if selected_market == "Custom":
+    with st.expander("🛠 Configure Custom Tickers", expanded=True):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        # Use session state to remember inputs
+        t1 = c1.text_input("Ticker 1", value="BTC-USD")
+        t2 = c2.text_input("Ticker 2", value="NVDA")
+        t3 = c3.text_input("Ticker 3", value="EURUSD=X")
+        t4 = c4.text_input("Ticker 4", value="GC=F")
+        t5 = c5.text_input("Ticker 5", value="^GSPC")
+        
+    active_tickers = {
+        t1.split("-")[0] if "-" in t1 else t1: t1,
+        t2.split("-")[0] if "-" in t2 else t2: t2,
+        t3.split("=")[0] if "=" in t3 else t3: t3,
+        t4.split("=")[0] if "=" in t4 else t4: t4,
+        t5.split("=")[0] if "=" in t5 else t5: t5,
+    }
+else:
+    active_tickers = market_map[selected_market]
+
+# FETCH & RENDER
+market_data = get_market_data(active_tickers)
+if market_data:
+    render_ticker_bar(market_data)
 
 st.markdown("---")
 
