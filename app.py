@@ -5,10 +5,11 @@ import time
 import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
+from streamlit.runtime.secrets import SecretsNotFoundError
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="Callums Terminal",
+    page_title="QUANTUM | Hedge Fund Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -76,20 +77,16 @@ def get_market_data(tickers_dict):
     try:
         data = {}
         for name, symbol in tickers_dict.items():
-            if not symbol: continue # Skip empty inputs
-            
+            if not symbol: continue 
             try:
                 ticker = yf.Ticker(symbol)
-                # Fast fetch
                 hist = ticker.history(period="1d", interval="1m")
-                
                 if not hist.empty:
                     latest = hist['Close'].iloc[-1]
                     open_p = hist['Open'].iloc[0]
                     change = ((latest - open_p) / open_p) * 100
                     data[name] = (latest, change)
                 else:
-                    # Fallback if 1m data fails
                     hist_long = ticker.history(period="2d")
                     if not hist_long.empty:
                         latest = hist_long['Close'].iloc[-1]
@@ -100,7 +97,6 @@ def get_market_data(tickers_dict):
                         data[name] = (0.0, 0.0)
             except:
                 data[name] = (0.0, 0.0)
-                
         return data
     except: return None
 
@@ -108,7 +104,6 @@ def get_symbol_details(key):
     """Auto-detects icon and formatting based on asset name."""
     key_upper = key.upper()
     icon = "📈"
-    
     if "BTC" in key_upper: icon = "₿"
     elif "ETH" in key_upper: icon = "Ξ"
     elif "EUR" in key_upper: icon = "💶"
@@ -121,28 +116,21 @@ def get_symbol_details(key):
     elif "TSLA" in key_upper: icon = "🚗"
     elif "NVDA" in key_upper: icon = "🤖"
     elif "AAPL" in key_upper: icon = "🍎"
-    
     return icon
 
 def render_ticker_bar(data):
     """Generates the horizontal scrollable HTML bar."""
     if not data: return
-    
     html_content = '<div class="ticker-wrap">'
-    
     for key, (price, change) in data.items():
         color = "pos" if change >= 0 else "neg"
         arrow = "▲" if change >= 0 else "▼"
-        
         if price > 1000: price_str = f"${price:,.0f}"
         elif price < 1.5: price_str = f"{price:.4f}"
         else: price_str = f"${price:.2f}"
-            
         icon = get_symbol_details(key)
-        
         card = f'<div class="ticker-item"><span class="t-label">{icon} {key}</span><span class="t-val">{price_str}</span><span class="t-delta {color}">{arrow} {change:.2f}%</span></div>'
         html_content += card
-            
     html_content += '</div>'
     st.markdown(html_content, unsafe_allow_html=True)
 
@@ -182,12 +170,10 @@ def render_chart(symbol):
     components.html(html, height=600)
 
 def render_economic_calendar(timezone_id):
-    """Embeds Investing.com Calendar with Dynamic Timezone."""
     calendar_url = f"https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone={timezone_id}&lang=1&importance=3"
     html = f"""
     <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; height: 800px;">
-        <iframe src="{calendar_url}" 
-        width="100%" height="800" frameborder="0" allowtransparency="true"></iframe>
+        <iframe src="{calendar_url}" width="100%" height="800" frameborder="0" allowtransparency="true"></iframe>
     </div>
     """
     components.html(html, height=800)
@@ -202,6 +188,7 @@ def scrape_site(url, limit):
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(r.content, 'html.parser')
+        # REDUCED LIMIT TO 1500 TO PREVENT OVERLOAD
         texts = [p.get_text() for p in soup.find_all(['h1', 'h2', 'p'])]
         return f"[[SOURCE: {url}]]\n" + " ".join(texts)[:limit] + "\n\n"
     except: return ""
@@ -219,7 +206,11 @@ def list_available_models(api_key):
 def generate_report(data_dump, mode, api_key, model_choice):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
-    time.sleep(5) # Safety Delay
+    # INCREASED SAFETY DELAY
+    time.sleep(8)
+    
+    # REDUCED CONTEXT WINDOW (SEND LESS TEXT)
+    safe_data = data_dump[:5000]
     
     fallback_chain = [model_choice]
     safe_defaults = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash"]
@@ -231,87 +222,73 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
     if mode == "BTC":
         prompt_text = f"""
-        ROLE: Senior Hedge Fund Analyst.
-        TASK: Write a comprehensive Bitcoin briefing.
-        DATA: {data_dump[:15000]}
-        OUTPUT FORMAT (Markdown):
-        ### ⚡️ BITCOIN EXECUTIVE SUMMARY
-        (Current Price Action & Narrative)
-        ### 🐋 ORDER FLOW & SENTIMENT
-        (ETF Flows, Whale Activity, Fear/Greed)
-        ### 🧱 KEY LEVELS
-        (Support/Resistance & Liquidity)
-        ### 🎯 TRADE PLAN
-        (Bull/Bear Scenarios)
+        ROLE: Hedge Fund Analyst.
+        TASK: Brief Bitcoin report.
+        DATA: {safe_data}
+        OUTPUT:
+        ### ⚡️ BITCOIN SUMMARY
+        (Price & Narrative)
+        ### 🐋 SENTIMENT
+        (Flows & Fear/Greed)
+        ### 🧱 LEVELS
+        (Support/Resistance)
+        ### 🎯 PLAN
+        (Bull/Bear)
         """
     elif mode == "GEO":
         prompt_text = f"""
-        ROLE: Geopolitical Risk Strategist.
-        TASK: Analyze events through MARKET IMPACT.
-        DATA: {data_dump[:15000]}
-        OUTPUT FORMAT (Strict Markdown - Insert \\n\\n before every header):
-        ### ⚠️ GEOPOLITICAL THREAT ASSESSMENT
-        **Current Status:** (Low / Elevated / Critical)
-        **Market Focus:** (e.g., "Middle East Tensions")
+        ROLE: Geopolitical Analyst.
+        TASK: Market Impact report.
+        DATA: {safe_data}
+        OUTPUT:
+        ### ⚠️ THREAT LEVEL
+        (Status & Focus)
         ---
-        ### 🛢 ENERGY & COMMODITIES
-        (Impact on supply chains/Gold demand)
+        ### 🛢 ENERGY
+        (Supply Impact)
         ---
-        ### 🛡 DEFENSE & SECURITY
-        (Conflict zone developments)
+        ### 🛡 DEFENSE
+        (Conflict Zones)
         ---
-        ### 💵 FX & SOVEREIGN RISK
-        (USD Safe Haven vs EM Risk)
+        ### 💵 FX RISK
+        (Safe Havens)
         """
     else: # FX
         prompt_text = f"""
-        ROLE: Global Macro Strategist (Forex Desk).
-        TASK: Detailed breakdown for the 7 Major Currencies based on the provided data.
-        DATA: {data_dump[:15000]}
-        OUTPUT FORMAT (Strict Markdown - IMPORTANT: You MUST put TWO NEWLINES (\\n\\n) before every header):
-        **💵 US DOLLAR INDEX (DXY) & MACRO**
-        (Advanced, concise synthesis of DXY structure, Yield Curve dynamics, and Global Liquidity conditions.)
+        ROLE: Macro Strategist.
+        TASK: FX Outlook (7 Majors).
+        DATA: {safe_data}
+        OUTPUT (Use \\n\\n before headers):
+        **💵 DXY MACRO**
+        (Concise structure & yields)
         ---
         ### 🇪🇺 EUR/USD
-        * **Overview:** (Context & Price Action)
-        * **Bias:** (Bullish / Bearish / Neutral)
-        * **News Impacts:** (ECB policy, Data releases)
-        * **Sentiment:** (Institutional positioning)
+        (Bias & Drivers)
         ---
         ### 🇬🇧 GBP/USD
-        * **Overview:** (Context & Price Action)
-        * **Bias:** (Bullish / Bearish / Neutral)
-        * **News Impacts:** (BoE policy, UK Data)
-        * **Sentiment:** (Institutional positioning)
+        (Bias & Drivers)
         ---
         ### 🇯🇵 USD/JPY
-        * **Overview:** (Context & Price Action)
-        * **Bias:** (Bullish / Bearish / Neutral)
-        * **News Impacts:** (BoJ interventions, Yield spreads)
-        * **Sentiment:** (Carry trade flows)
+        (Bias & Drivers)
         ---
         ### 🇨🇭 USD/CHF
-        * **Overview:** (Safe haven status & SNB)
-        * **Bias:** (Direction)
+        (Bias)
         ---
         ### 🇦🇺 AUD/USD
-        * **Overview:** (Commodities & China correlation)
-        * **Bias:** (Direction)
+        (Bias)
         ---
         ### 🇨🇦 USD/CAD
-        * **Overview:** (Oil correlation & BoC)
-        * **Bias:** (Direction)
+        (Bias)
         ---
         ### 🇳🇿 NZD/USD
-        * **Overview:** (Agri-commodities & RBNZ)
-        * **Bias:** (Direction)
+        (Bias)
         """
 
     payload = {"contents": [{"parts": [{"text": prompt_text}]}], "safetySettings": safety_settings}
 
     for model in fallback_chain:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        wait_times = [5, 10]
+        wait_times = [8, 15] # LONGER WAITS
         for wait in wait_times:
             try:
                 r = requests.post(url, headers=headers, json=payload)
@@ -327,36 +304,31 @@ def generate_report(data_dump, mode, api_key, model_choice):
             except Exception:
                 time.sleep(1); continue
                 
-    return "⚠️ System Overloaded: All AI models are busy. Please wait 1 minute."
+    return "⚠️ Server Busy. Please wait 2 minutes."
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("Update v15.12")
+    st.title("💠 Callums Terminals")
+    st.caption("Update v15.13")
     st.markdown("---")
     
-    # --- AUTO-LOGIN LOGIC (CRASH PROOF) ---
     api_key = None
     try:
-        # We try to get the secret. If the file is missing, it jumps to 'except'
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"]
             st.success("🔑 Key Loaded Securely")
         else:
             api_key = st.text_input("Use API Key to connect to server", type="password")
-    except FileNotFoundError:
-        # If the file is missing on local PC, just show the box
+    except (FileNotFoundError, SecretsNotFoundError):
         api_key = st.text_input("Use API Key to connect to server", type="password")
     except Exception:
-        # Catch-all for any other secret errors
         api_key = st.text_input("Use API Key to connect to server", type="password")
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
     
-    # 1. TIMEZONE SELECTOR
     tz_map = {
-        "London (GMT)": 15, 
+        "London (GMT)": 2, 
         "London (Alt)": 42, 
         "New York (EST)": 8, 
         "Tokyo (JST)": 18
@@ -395,7 +367,6 @@ with st.sidebar:
 st.title("TERMINAL DASHBOARD 🖥️")
 st.markdown("---")
 
-# MARKET SELECTOR + CUSTOM LOGIC
 col_sel, col_space = st.columns([1, 2])
 with col_sel:
     selected_market = st.selectbox(
@@ -404,7 +375,6 @@ with col_sel:
         index=0
     )
 
-# DEFINE MARKET BASKETS
 market_map = {
     "Standard": {"BTC": "BTC-USD", "EUR": "EURUSD=X", "USD": "DX-Y.NYB", "GOLD": "GC=F", "OIL": "CL=F"},
     "Crypto": {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD", "XRP": "XRP-USD", "DOGE": "DOGE-USD"},
@@ -413,11 +383,9 @@ market_map = {
     "Indices": {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI", "VIX": "^VIX", "FTSE": "^FTSE"}
 }
 
-# LOGIC FOR CUSTOM TICKERS
 if selected_market == "Custom":
     with st.expander("🛠 Configure Custom Tickers", expanded=True):
         c1, c2, c3, c4, c5 = st.columns(5)
-        # Use session state to remember inputs
         t1 = c1.text_input("Ticker 1", value="BTC-USD")
         t2 = c2.text_input("Ticker 2", value="NVDA")
         t3 = c3.text_input("Ticker 3", value="EURUSD=X")
@@ -434,14 +402,12 @@ if selected_market == "Custom":
 else:
     active_tickers = market_map[selected_market]
 
-# FETCH & RENDER
 market_data = get_market_data(active_tickers)
 if market_data:
     render_ticker_bar(market_data)
 
 st.markdown("---")
 
-# TABS
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗞️Bitcoin", "🌍Currencies", "🌐Geopolitics", "📅 Calendar", "📈Charts"])
 
 with tab1:
@@ -457,7 +423,8 @@ with tab1:
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             with st.status("Accessing Institutional Feeds...", expanded=True):
                 raw = ""
-                for s in BTC_SOURCES: raw += scrape_site(s, 5000)
+                # REDUCED LIMIT HERE
+                for s in BTC_SOURCES: raw += scrape_site(s, 1500)
                 st.write("Synthesizing Report...")
                 report = generate_report(raw, "BTC", api_key, model_choice)
                 st.session_state['btc_rep'] = report
@@ -478,7 +445,7 @@ with tab2:
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             with st.status("Analyzing 7 Majors...", expanded=True):
                 raw = ""
-                for s in FX_SOURCES: raw += scrape_site(s, 5000)
+                for s in FX_SOURCES: raw += scrape_site(s, 1500)
                 st.write("Running Quant Analysis...")
                 report = generate_report(raw, "FX", api_key, model_choice)
                 st.session_state['fx_rep'] = report
@@ -493,7 +460,7 @@ with tab3:
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         with st.status("Scanning Classified Channels...", expanded=True):
             raw = ""
-            for s in GEO_SOURCES: raw += scrape_site(s, 5000)
+            for s in GEO_SOURCES: raw += scrape_site(s, 1500)
             st.write("Assessing Threat/volatility Levels...")
             report = generate_report(raw, "GEO", api_key, model_choice)
             st.session_state['geo_rep'] = report
@@ -503,7 +470,6 @@ with tab3:
 
 with tab4:
     st.subheader("High Impact Economic Events")
-    # Pass the selected ID from the sidebar
     render_economic_calendar(tz_id)
 
 with tab5:
