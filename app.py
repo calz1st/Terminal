@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="QUANTUM | Hedge Fund Terminal",
+    page_title="Callums Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -330,15 +330,15 @@ def generate_report(data_dump, mode, api_key):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminals")
-    st.caption("Update v15.35 (Optimized FX)")
+    st.title("💠 Callums Terminal")
+    st.caption("Update v15.35")
     st.markdown("---")
     
     api_key = None
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip()
-            st.success("🔑 Key Loaded")
+            st.success("🔑 Key securley Loaded")
         else:
             api_key = st.text_input("Use API Key to connect to server", type="password")
     except Exception:
