@@ -188,22 +188,22 @@ def render_economic_calendar(timezone_id):
 @st.cache_data(ttl=600) 
 def get_rss_news(query):
     """
-    Fetches news from Google News RSS.
-    This is robust, free, and provides real-time headlines without blocking.
+    Fetches news from Google News RSS using standard HTML parser.
+    This fixes the 'lxml not found' technical error.
     """
     try:
-        # Google News RSS URL
         url = f"https://news.google.com/rss/search?q={query}+when:1d&hl=en-US&gl=US&ceid=US:en"
         r = requests.get(url, timeout=5)
         
-        # Simple XML parsing using BeautifulSoup
-        soup = BeautifulSoup(r.content, features="xml")
+        # --- CRITICAL FIX: Use 'html.parser' instead of 'xml' ---
+        soup = BeautifulSoup(r.content, features="html.parser")
         items = soup.findAll('item')
         
         news_text = ""
-        for item in items[:15]: # Get top 15 headlines
-            title = item.title.text
-            pubdate = item.pubDate.text
+        for item in items[:15]: 
+            # In HTML parser, tags might be lowercased, so we look for 'title' and 'pubdate'
+            title = item.find('title').text if item.find('title') else "No Title"
+            pubdate = item.find('pubdate').text if item.find('pubdate') else ""
             news_text += f"- {title} ({pubdate})\n"
             
         if not news_text:
@@ -245,7 +245,6 @@ def generate_report(data_dump, mode, api_key):
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
     generation_config = {"maxOutputTokens": 2500}
 
-    # PROMPTS
     if mode == "BTC":
         prompt = f"""
         ROLE: Institutional Crypto Strategist.
@@ -323,7 +322,7 @@ def generate_report(data_dump, mode, api_key):
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.32 (RSS Command)")
+    st.caption("Update v15.33 (Dependency-Free)")
     st.markdown("---")
     
     api_key = None
