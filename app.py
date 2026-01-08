@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="Callums Terminal",
+    page_title="QUANTUM | Hedge Fund Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -21,42 +21,95 @@ if 'active_view' not in st.session_state:
 if 'active_chart' not in st.session_state:
     st.session_state['active_chart'] = "COINBASE:BTCUSD"
 
-# --- 3. UI THEME ---
+# --- 3. UI THEME (PROFESSIONAL SLEEK) ---
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         
-        .stApp { background-color: #FAFAFA; color: #111827; font-family: 'Inter', sans-serif; }
-        [data-testid="stSidebar"] { background-color: #F3F4F6; border-right: 1px solid #E5E7EB; }
+        /* GLOBAL RESET */
+        .stApp { 
+            background-color: #F9FAFB; /* Very light cool grey (SaaS standard) */
+            color: #111827; 
+            font-family: 'Inter', sans-serif; 
+        }
         
-        h1, h2, h3 { color: #111827 !important; font-weight: 600; letter-spacing: -0.5px; }
-        p, div, li { color: #374151; font-size: 15px; line-height: 1.6; }
+        /* SIDEBAR POLISH */
+        [data-testid="stSidebar"] { 
+            background-color: #FFFFFF; 
+            border-right: 1px solid #F3F4F6; 
+        }
         
-        /* Button Styling to look like Tickers */
+        /* TYPOGRAPHY */
+        h1, h2, h3 { 
+            color: #111827 !important; 
+            font-weight: 700; 
+            letter-spacing: -0.025em; /* Tight tracking for modern feel */
+        }
+        p, div, li { 
+            color: #4B5563; /* Softer text color for readability */
+            font-size: 15px; 
+            line-height: 1.6; 
+        }
+        
+        /* BUTTONS (TICKERS & NAV) */
         div.stButton > button {
             width: 100%;
-            border-radius: 8px;
+            background-color: #FFFFFF;
+            color: #1F2937;
             border: 1px solid #E5E7EB;
-            background-color: white;
-            color: #111827;
+            border-radius: 10px; /* Softer curves */
+            padding: 12px 16px;
+            font-weight: 500;
             text-align: left;
-            padding: 10px 15px;
-            transition: all 0.2s;
-        }
-        div.stButton > button:hover {
-            border-color: #000;
-            background-color: #F9FAFB;
-            transform: translateY(-2px);
-        }
-        /* Active State Highlight */
-        div.stButton > button:focus {
-            border-color: #000;
-            background-color: #F3F4F6;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* Subtle depth */
+            transition: all 0.2s ease-in-out;
         }
         
+        /* BUTTON HOVER STATE (TACTILE FEEL) */
+        div.stButton > button:hover {
+            border-color: #D1D5DB;
+            background-color: #FFFFFF;
+            color: #000000;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transform: translateY(-1px); /* Slight lift */
+        }
+        
+        /* ACTIVE BUTTON STATE */
+        div.stButton > button:focus {
+            border-color: #111827;
+            background-color: #F3F4F6;
+            color: #000000;
+            box-shadow: none;
+        }
+        
+        /* PRIMARY ACTION BUTTONS (GENERATE) */
+        /* Target specific buttons if possible, or style secondary buttons differently */
+        
+        /* CARDS (REPORTS) */
         .terminal-card {
-            background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px;
-            padding: 30px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            background-color: #FFFFFF; 
+            border: 1px solid #E5E7EB; 
+            border-radius: 12px;
+            padding: 32px; 
+            margin-top: 20px; 
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        /* TICKER VALUES (MONOSPACE) */
+        .t-val { 
+            font-family: 'JetBrains Mono', monospace; 
+            font-weight: 700; 
+            font-size: 16px;
+            color: #111827;
+        }
+        
+        /* CLEAN UP STREAMLIT DEFAULTS */
+        .stSelectbox > div > div {
+            background-color: #FFFFFF;
+            border-radius: 8px;
+        }
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0); /* Transparent header */
         }
     </style>
 """, unsafe_allow_html=True)
@@ -71,7 +124,6 @@ def get_market_data(tickers_dict):
             if not symbol: continue 
             try:
                 ticker = yf.Ticker(symbol)
-                # Fast Fetch
                 hist = ticker.history(period="1d", interval="1m")
                 if hist.empty: hist = ticker.history(period="2d")
                 
@@ -104,13 +156,8 @@ def get_symbol_details(key):
     return icon
 
 def render_ticker_grid(data, asset_map):
-    """
-    Replaces HTML ticker tape with a NATIVE STREAMLIT GRID.
-    This guarantees buttons are clickable.
-    """
     if not data: return
 
-    # Define TradingView Mapping for Click Action
     tv_map = {
         "BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD", "XRP": "COINBASE:XRPUSD",
         "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF",
@@ -120,27 +167,21 @@ def render_ticker_grid(data, asset_map):
         "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"
     }
 
-    # Create 5 columns for the grid
     cols = st.columns(5)
     
     for i, (key, (price, change)) in enumerate(data.items()):
-        # Format the text
         icon = get_symbol_details(key)
         arrow = "▲" if change >= 0 else "▼"
+        color = "🟢" if change >= 0 else "🔴" # Using emoji for cleaner look in button
         price_str = f"${price:,.0f}" if price > 100 else f"${price:.4f}"
         
-        # Determine label text
-        label = f"{icon} {key}\n{price_str} ({arrow} {change:.2f}%)"
+        # Professional Label Formatting
+        label = f"{icon}  {key}\n{price_str}   {arrow} {change:.2f}%"
         
-        # Place button in column (modulo 5)
         with cols[i % 5]:
-            # THE MAGIC: A real Streamlit button
             if st.button(label, key=f"btn_{key}", use_container_width=True):
-                # Action: Update Chart & Switch Tab
                 clean_key = key.split("-")[0] if "-" in key else key
-                # Find TV code
                 tv_code = tv_map.get(clean_key, tv_map.get(key, "COINBASE:BTCUSD"))
-                
                 st.session_state['active_chart'] = tv_code
                 st.session_state['active_view'] = "Charts"
                 st.rerun()
@@ -172,7 +213,7 @@ def render_gauge(value, title):
 
 def render_chart(symbol):
     html = f"""
-    <div class="tradingview-widget-container" style="height:600px;border-radius:8px;overflow:hidden;border:1px solid #E5E7EB;">
+    <div class="tradingview-widget-container" style="height:600px;border-radius:12px;overflow:hidden;border:1px solid #E5E7EB;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <div id="tradingview_{symbol}" style="height:100%"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
       <script type="text/javascript">
@@ -185,7 +226,7 @@ def render_chart(symbol):
 def render_economic_calendar(timezone_id):
     calendar_url = f"https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone={timezone_id}&lang=1&importance=3"
     html = f"""
-    <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; height: 800px;">
+    <div style="border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; height: 800px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <iframe src="{calendar_url}" width="100%" height="800" frameborder="0" allowtransparency="true"></iframe>
     </div>
     """
@@ -230,7 +271,6 @@ def generate_report(data_dump, mode, api_key):
     
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
-    # LIMIT: 2500 Tokens (Optimized)
     generation_config = {"maxOutputTokens": 2500}
 
     if mode == "BTC":
@@ -250,15 +290,15 @@ def generate_report(data_dump, mode, api_key):
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("Update v15.38")
+    st.title("💠 Callums Terminals")
+    st.caption("Update v15.39 (Platinum UI)")
     st.markdown("---")
     
     api_key = None
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip()
-            st.success("🔑 Key Loaded Securely")
+            st.success("🔑 Key Loaded")
         else:
             api_key = st.text_input("Use API Key", type="password")
     except:
@@ -268,7 +308,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
-    tz_map = {"London (GMT)": 15, "New York (EST)": 8, "Tokyo (JST)": 18}
+    tz_map = {"London (GMT)": 2, "New York (EST)": 8, "Tokyo (JST)": 18}
     selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
     
     st.markdown("---")
