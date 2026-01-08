@@ -6,8 +6,6 @@ import re
 import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
-import random
-import textwrap
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -31,7 +29,7 @@ st.markdown("""
         /* Report Cards */
         .terminal-card {
             background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px;
-            padding: 25px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 30px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         
         /* Buttons */
@@ -41,6 +39,11 @@ st.markdown("""
         }
         .stButton>button:hover { background-color: #333333; }
         
+        /* Status Box */
+        .status-box {
+            padding: 10px; border-radius: 5px; background: #e0e7ff; color: #3730a3; font-family: monospace; font-size: 12px; margin-bottom: 10px;
+        }
+
         /* SCROLLABLE TICKER CSS */
         .ticker-wrap {
             display: flex;
@@ -180,93 +183,137 @@ def render_economic_calendar(timezone_id):
     """
     components.html(html, height=800)
 
-# --- 4. OFFLINE BACKUP GENERATOR (FIXED INDENTATION) ---
-def generate_offline_report(mode):
-    timestamp = time.strftime("%H:%M UTC")
-    
-    if mode == "BTC":
-        # We use textwrap.dedent to remove the spaces that cause the "Box" look
-        return textwrap.dedent(f"""
-        ### ⚡️ BITCOIN MARKET UPDATE (OFFLINE)
-        **Time:** {timestamp}
-        
-        **Price Action:** Bitcoin is currently consolidating. The market is waiting for a decisive breakout above recent resistance or a breakdown below support.
-        
-        **Sentiment:** Mixed. Institutional flows appear neutral, while retail sentiment remains cautious.
-        
-        ### 🎯 KEY LEVELS
-        * **Resistance:** $98,500 / $100,000 (Psychological)
-        * **Support:** $92,000 / $88,500 (Key demand zone)
-        
-        **Trade Plan:** Watch for volume confirmation at these levels. Avoid over-leveraging in this chop.
-        """).strip()
-    
-    elif mode == "GEO":
-        return textwrap.dedent(f"""
-        ### ⚠️ GEOPOLITICAL RISK SCAN (OFFLINE)
-        **Time:** {timestamp}
-        
-        **Threat Level:** ELEVATED
-        
-        **Key Focus Areas:**
-        * **Middle East:** Tensions remain a primary driver for oil volatility.
-        * **Global Trade:** Supply chain disruptions are monitoring closely.
-        
-        ### 🛢 COMMODITIES IMPACT
-        * **Gold:** Acting as a safe haven amid uncertainty.
-        * **Oil:** Price action remains sensitive to headlines.
-        """).strip()
-        
-    else:
-        return textwrap.dedent(f"""
-        ### 💵 GLOBAL FX OUTLOOK (OFFLINE)
-        **Time:** {timestamp}
-        
-        **DXY (Dollar Index):** Holding steady. The USD is reacting to recent yield curve movements.
-        
-        ### 🇪🇺 EUR/USD
-        * **Bias:** Neutral-Bearish.
-        * **Driver:** ECB policy divergence vs Fed.
-        
-        ### 🇯🇵 USD/JPY
-        * **Bias:** Bullish.
-        * **Driver:** Yield spread differential favors USD.
-        """).strip()
+# --- 4. DATA SOURCES & AI ---
 
-# --- 5. REPORT GENERATION LOGIC ---
+@st.cache_data(ttl=600) 
+def scrape_site(url, limit):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(r.content, 'html.parser')
+        texts = [p.get_text() for p in soup.find_all(['h1', 'h2', 'p'])]
+        return f"[[SOURCE: {url}]]\n" + " ".join(texts)[:500] + "\n\n"
+    except: return ""
+
+def resolve_best_model(api_key):
+    """Finds the best available model for the key."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        
+        if 'error' in data: return None, data['error']['message']
+        
+        valid_models = []
+        for m in data.get('models', []):
+            if 'generateContent' in m.get('supportedGenerationMethods', []):
+                clean_name = m['name'].replace("models/", "")
+                valid_models.append(clean_name)
+        
+        preferred_order = ["gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro"]
+        for pref in preferred_order:
+            if pref in valid_models: return pref, "OK"
+        
+        if valid_models: return valid_models[0], "OK"
+        return None, "No valid models found."
+        
+    except Exception as e: return None, str(e)
 
 @st.cache_data(ttl=3600, show_spinner="Analyzing...") 
-def generate_report(mode, api_key):
+def generate_report(data_dump, mode, api_key):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
     clean_key = api_key.strip()
+    active_model, status = resolve_best_model(clean_key)
+    
+    if not active_model: return f"❌ Model Discovery Failed: {status}"
+    
+    headers = {'Content-Type': 'application/json'}
+    safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
+    
+    # INCREASED OUTPUT CAPACITY (1000 Tokens) for deeper analysis
+    generation_config = {"maxOutputTokens": 1000}
+
+    # --- ENHANCED PROMPTS FOR "PRO ANALYST" MODE ---
+    if mode == "BTC":
+        prompt = f"""
+        ROLE: Senior Crypto Analyst.
+        TASK: Detailed Bitcoin technical & sentiment update.
+        OUTPUT FORMAT (Markdown):
+        ### ⚡️ MARKET STRUCTURE
+        (Current Trend / Volume Analysis)
+        ### 🐋 ON-CHAIN & SENTIMENT
+        (Whale Flows / Fear & Greed Context)
+        ### 🎯 KEY LEVELS
+        (Support / Resistance / Liquidity Zones)
+        """
+    elif mode == "GEO":
+        prompt = f"""
+        ROLE: Geopolitical Risk Strategist.
+        TASK: Deep dive into global threats affecting markets.
+        OUTPUT FORMAT (Markdown):
+        ### 🌍 EXECUTIVE SUMMARY
+        (High-level threat assessment)
+        ### ⚔️ REGIONAL FLASHPOINTS
+        (Detailed update on Middle East, Europe, or Asia tensions)
+        ### ⛓️ SUPPLY CHAIN & ENERGY
+        (Impact on Oil, Shipping Routes, and Tech Supply)
+        ### 🛡 MARKET IMPLICATIONS
+        (Safe Haven flows: Gold, USD, CHF)
+        """
+    else: # FX
+        prompt = f"""
+        ROLE: Lead FX Strategist.
+        TASK: Concise Outlook for ALL 7 MAJORS.
+        OUTPUT FORMAT (Markdown):
+        **💵 DXY (DOLLAR INDEX)**
+        (Structure & Yield Driver)
+        ---
+        ### 🇪🇺 EUR/USD
+        (Bias / Key Level / Driver)
+        ### 🇬🇧 GBP/USD
+        (Bias / Key Level / Driver)
+        ### 🇯🇵 USD/JPY
+        (Bias / Key Level / Driver)
+        ### 🇨🇭 USD/CHF
+        (Bias / Key Level)
+        ### 🇦🇺 AUD/USD
+        (Bias / China Proxy)
+        ### 🇨🇦 USD/CAD
+        (Bias / Oil correlation)
+        ### 🇳🇿 NZD/USD
+        (Bias / Key Level)
+        """
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{active_model}:generateContent?key={clean_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}], 
+        "safetySettings": safety_settings,
+        "generationConfig": generation_config
+    }
     
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={clean_key}"
-        headers = {'Content-Type': 'application/json'}
+        r = requests.post(url, headers=headers, json=payload)
+        response_json = r.json()
         
-        if mode == "BTC": prompt = "Write a brief Bitcoin technical analysis update with levels."
-        elif mode == "GEO": prompt = "Write a brief geopolitical risk summary for investors."
-        else: prompt = "Write a brief FX market outlook for EURUSD and DXY."
+        if 'candidates' in response_json:
+            return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
         
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        
-        r = requests.post(url, headers=headers, json=payload, timeout=8)
-        
-        if r.status_code == 200:
-            data = r.json()
-            if 'candidates' in data:
-                return data['candidates'][0]['content']['parts'][0]['text']
+        if 'error' in response_json:
+            err_msg = response_json['error'].get('message', '')
+            if response_json['error'].get('code') == 429:
+                return "⚠️ **High Traffic:** Google is cooling down your key. Wait 20s and try again."
+            return f"❌ Error: {err_msg}"
                 
-    except Exception:
-        pass 
-    
-    return generate_offline_report(mode)
+    except Exception as e:
+        return f"System Error: {str(e)}"
+            
+    return "❌ Connection Failed."
 
-# --- 6. SIDEBAR ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.27 (Clean UI)")
+    st.caption("Update v15.26 (Pro Analyst)")
     st.markdown("---")
     
     api_key = None
@@ -288,13 +335,20 @@ with st.sidebar:
     selected_tz = st.selectbox("Calendar Timezone:", list(tz_map.keys()), index=0)
     
     st.markdown("---")
-    st.subheader("🤖 System Status")
-    st.info("✅ Auto-Failover Active")
+    
+    if api_key:
+        if 'active_model_name' not in st.session_state:
+            found_model, _ = resolve_best_model(api_key)
+            if found_model:
+                st.session_state['active_model_name'] = found_model
+        
+        current_model = st.session_state.get('active_model_name', "Scanning...")
+        st.info(f"🟢 Connected: {current_model}")
     
     st.markdown("---")
     st.success("● NETWORK: SECURE")
 
-# --- 7. MAIN DASHBOARD ---
+# --- 6. MAIN DASHBOARD ---
 st.title("TERMINAL DASHBOARD 🖥️")
 st.markdown("---")
 
@@ -338,7 +392,8 @@ with tab1:
     with col_b:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
-            report = generate_report("BTC", api_key)
+            st.info("⏳ Negotiating with Google AI...")
+            report = generate_report("", "BTC", api_key)
             st.session_state['btc_rep'] = report
             st.rerun() 
             
@@ -355,7 +410,8 @@ with tab2:
     with col_b:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
-            report = generate_report("FX", api_key)
+            st.info("⏳ Negotiating with Google AI...")
+            report = generate_report("", "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
         if 'fx_rep' in st.session_state:
@@ -364,7 +420,8 @@ with tab2:
 with tab3:
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
-        report = generate_report("GEO", api_key)
+        st.info("⏳ Negotiating with Google AI...")
+        report = generate_report("", "GEO", api_key)
         st.session_state['geo_rep'] = report
         st.rerun()
     if 'geo_rep' in st.session_state:
