@@ -231,21 +231,23 @@ def generate_report(data_dump, mode, api_key):
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
     
-    # INCREASED OUTPUT CAPACITY (1000 Tokens) for deeper analysis
-    generation_config = {"maxOutputTokens": 1000}
+    # INCREASED OUTPUT CAPACITY (1200 Tokens) for deep crypto analysis
+    generation_config = {"maxOutputTokens": 1200}
 
-    # --- ENHANCED PROMPTS FOR "PRO ANALYST" MODE ---
+    # --- ADVANCED PROMPTS FOR "DEEP CRYPTO" & "PRO ANALYST" MODES ---
     if mode == "BTC":
         prompt = f"""
-        ROLE: Senior Crypto Analyst.
-        TASK: Detailed Bitcoin technical & sentiment update.
+        ROLE: Institutional Crypto Strategist.
+        TASK: Write a comprehensive, deep-dive Bitcoin briefing.
         OUTPUT FORMAT (Markdown):
-        ### ⚡️ MARKET STRUCTURE
-        (Current Trend / Volume Analysis)
-        ### 🐋 ON-CHAIN & SENTIMENT
-        (Whale Flows / Fear & Greed Context)
-        ### 🎯 KEY LEVELS
-        (Support / Resistance / Liquidity Zones)
+        ### ⚡️ MARKET STRUCTURE & TREND
+        (Analyze Weekly/Daily structure, Volume Profiles, and Key Moving Averages)
+        ### 🏦 INSTITUTIONAL FLOWS
+        (ETF Inflows/Outflows, Coinbase Premium, Institutional buying patterns)
+        ### 📊 DERIVATIVES HEALTH
+        (Funding Rates, Open Interest, Liquidation Heatmaps)
+        ### 🔮 SCENARIO PLANNING
+        (Bull Case: Confirmation needed / Bear Case: Invalidation levels)
         """
     elif mode == "GEO":
         prompt = f"""
@@ -313,7 +315,7 @@ def generate_report(data_dump, mode, api_key):
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.26 (Pro Analyst)")
+    st.caption("Update v15.27 (Deep Crypto)")
     st.markdown("---")
     
     api_key = None
@@ -393,6 +395,7 @@ with tab1:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             st.info("⏳ Negotiating with Google AI...")
+            # We don't pass model choice anymore; the function finds it
             report = generate_report("", "BTC", api_key)
             st.session_state['btc_rep'] = report
             st.rerun() 
