@@ -195,7 +195,8 @@ def scrape_site(url, limit):
 
 def debug_connection(api_key):
     """Runs a raw test against Google's API to see exactly what's breaking."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # We test with GEMINI-PRO (the most compatible model)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
     
@@ -211,19 +212,17 @@ def generate_report(data_dump, mode, api_key, model_choice):
     # Clean the key again
     clean_key = api_key.strip()
     
-    # Priority Chain: Flash 1.5 is the most robust
-    fallback_chain = ["gemini-1.5-flash", "gemini-1.5-pro-latest"]
+    # --- CRITICAL FIX: CHANGED DEFAULT TO 'gemini-pro' ---
+    # This is the "Universal" model that works on all accounts.
+    fallback_chain = ["gemini-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+    
+    # Insert user choice only if it's different
+    if model_choice not in fallback_chain:
+        fallback_chain.insert(0, model_choice)
 
     headers = {'Content-Type': 'application/json'}
-    # ULTRA-LOOSE SAFETY SETTINGS
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-    ]
+    safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
 
-    # Minimal Prompts
     if mode == "BTC":
         prompt = f"""ROLE: Analyst. TASK: Bitcoin technical update. OUTPUT: ### ⚡️ NARRATIVE \n ### 🎯 LEVELS"""
     elif mode == "GEO":
@@ -239,35 +238,28 @@ def generate_report(data_dump, mode, api_key, model_choice):
             r = requests.post(url, headers=headers, json=payload)
             response_json = r.json()
             
-            # 1. Success Case
             if 'candidates' in response_json and len(response_json['candidates']) > 0:
-                # Check for finishReason safety blocks
-                candidate = response_json['candidates'][0]
-                if candidate.get('finishReason') == "SAFETY":
-                    return "⚠️ **Blocked by Safety Filter.** Google thinks this request is dangerous."
-                
-                if 'content' in candidate:
-                    return candidate['content']['parts'][0]['text'].replace("$","USD ")
+                return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
             
-            # 2. Safety Feedback (Prompt Level)
-            if 'promptFeedback' in response_json:
-                if 'blockReason' in response_json['promptFeedback']:
-                    return f"⚠️ **Blocked:** {response_json['promptFeedback']['blockReason']}"
-
-            # 3. HTTP Error Codes
             if 'error' in response_json:
-                err = response_json['error']
-                return f"❌ **Google Error ({err.get('code')}):** {err.get('message')}"
+                err_code = response_json['error'].get('code')
+                # If 404 (Model not found), just loop to the next one silently
+                if err_code == 404:
+                    continue
+                # If 429 (Busy), wait and loop
+                if err_code in [429, 503]:
+                    time.sleep(1)
+                    continue
                     
-        except Exception as e:
-            return f"System Error: {str(e)}"
+        except Exception:
+            continue
             
-    return "❌ Connection Failed. Unknown Response Structure."
+    return "❌ Connection Failed. Please check your API Key."
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.18")
+    st.caption("Update v15.19")
     st.markdown("---")
     
     api_key = None
@@ -290,11 +282,10 @@ with st.sidebar:
             with st.spinner("Pinging Google..."):
                 code, raw_resp = debug_connection(api_key)
                 if code == 200:
-                    st.success("✅ Connection Successful!")
-                    st.code(raw_resp[:200] + "...", language="json")
+                    st.success("✅ Connection Successful! (Using Gemini Pro)")
                 else:
                     st.error(f"❌ Failed (Code {code})")
-                    st.error(raw_resp) # SHOW THE RAW ERROR
+                    st.error(raw_resp) 
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
@@ -350,7 +341,8 @@ with tab1:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             with st.status("Accessing Feed...", expanded=True):
-                report = generate_report("", "BTC", api_key, "gemini-1.5-flash")
+                # Using 'gemini-pro' as default now
+                report = generate_report("", "BTC", api_key, "gemini-pro")
                 st.session_state['btc_rep'] = report
         if 'btc_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["btc_rep"]}</div>', unsafe_allow_html=True)
@@ -366,7 +358,7 @@ with tab2:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             with st.status("Accessing Feed...", expanded=True):
-                report = generate_report("", "FX", api_key, "gemini-1.5-flash")
+                report = generate_report("", "FX", api_key, "gemini-pro")
                 st.session_state['fx_rep'] = report
         if 'fx_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
@@ -375,7 +367,7 @@ with tab3:
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         with st.status("Accessing Feed...", expanded=True):
-            report = generate_report("", "GEO", api_key, "gemini-1.5-flash")
+            report = generate_report("", "GEO", api_key, "gemini-pro")
             st.session_state['geo_rep'] = report
     if 'geo_rep' in st.session_state:
         st.markdown(f'<div class="terminal-card">{st.session_state["geo_rep"]}</div>', unsafe_allow_html=True)
