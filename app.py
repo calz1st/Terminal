@@ -9,13 +9,42 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="Callums Terminal",
+    page_title="QUANTUM | Hedge Fund Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- 2. UI THEME ---
+# --- 2. SESSION STATE SETUP ---
+if 'active_view' not in st.session_state:
+    st.session_state['active_view'] = "Bitcoin" # Default Tab
+if 'active_chart' not in st.session_state:
+    st.session_state['active_chart'] = "COINBASE:BTCUSD"
+
+# --- 3. HANDLE QUERY PARAMS (THE INTERACTIVE TRICK) ---
+# Check if a ticker was clicked (reloads app with ?chart=XYZ)
+if "chart" in st.query_params:
+    target_ticker = st.query_params["chart"]
+    
+    # Map simple tickers to TradingView Codes
+    tv_map = {
+        "BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD",
+        "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF",
+        "CAD": "FX:USDCAD", "AUD": "FX:AUDUSD", "NZD": "FX:NZDUSD",
+        "DXY": "TVC:DXY", "GOLD": "OANDA:XAUUSD", "OIL": "TVC:USOIL",
+        "NVDA": "NASDAQ:NVDA", "TSLA": "NASDAQ:TSLA", "AAPL": "NASDAQ:AAPL",
+        "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"
+    }
+    
+    # Update State & Clear Param
+    if target_ticker in tv_map:
+        st.session_state['active_chart'] = tv_map[target_ticker]
+        st.session_state['active_view'] = "Charts" # Switch Tab
+    
+    # Clear the param so it doesn't get stuck
+    st.query_params.clear()
+
+# --- 4. UI THEME ---
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -26,56 +55,50 @@ st.markdown("""
         h1, h2, h3 { color: #111827 !important; font-weight: 600; letter-spacing: -0.5px; }
         p, div, li { color: #374151; font-size: 15px; line-height: 1.6; }
         
+        /* Custom Nav Bar */
+        .nav-btn {
+            display: inline-block; padding: 10px 20px; margin-right: 10px;
+            border-radius: 20px; font-weight: 600; cursor: pointer;
+            text-decoration: none !important; transition: all 0.2s;
+        }
+        .nav-active { background-color: #000000; color: white !important; }
+        .nav-inactive { background-color: #E5E7EB; color: #374151 !important; }
+        
         /* Report Cards */
         .terminal-card {
             background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px;
             padding: 30px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         
-        /* Buttons */
-        .stButton>button {
-            background-color: #000000; color: #FFFFFF !important; border: none;
-            border-radius: 6px; padding: 12px 24px; font-weight: 500; width: 100%;
-        }
-        .stButton>button:hover { background-color: #333333; }
-        
-        /* Status Box */
-        .status-box {
-            padding: 10px; border-radius: 5px; background: #e0e7ff; color: #3730a3; font-family: monospace; font-size: 12px; margin-bottom: 10px;
-        }
-
         /* SCROLLABLE TICKER CSS */
         .ticker-wrap {
-            display: flex;
-            overflow-x: auto;
-            gap: 15px;
-            padding: 10px 0px;
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none;  /* IE 10+ */
-            white-space: nowrap;
+            display: flex; overflow-x: auto; gap: 15px; padding: 10px 0px;
+            scrollbar-width: none; white-space: nowrap;
         }
-        .ticker-wrap::-webkit-scrollbar { 
-            display: none; /* Chrome/Safari */
-        }
+        .ticker-wrap::-webkit-scrollbar { display: none; }
+        
         .ticker-item {
-            min-width: 150px;
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #E5E7EB;
+            min-width: 150px; background: white; padding: 15px;
+            border-radius: 10px; border: 1px solid #E5E7EB;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
+            display: flex; flex-direction: column;
+            text-decoration: none !important; color: inherit !important;
+            transition: transform 0.1s;
         }
+        .ticker-item:hover { transform: translateY(-2px); border-color: #000; }
+        
         .t-label { font-size: 12px; color: #6B7280; font-weight: 600; margin-bottom: 5px;}
         .t-val { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono'; color: #111827; }
         .t-delta { font-size: 12px; font-weight: 500; margin-top: 2px; }
         .pos { color: #059669; }
         .neg { color: #DC2626; }
+        
+        /* Remove default link styles */
+        a { text-decoration: none; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. HELPER FUNCTIONS ---
+# --- 5. HELPER FUNCTIONS ---
 
 @st.cache_data(ttl=60)
 def get_market_data(tickers_dict):
@@ -132,7 +155,15 @@ def render_ticker_bar(data):
         elif price < 1.5: price_str = f"{price:.4f}"
         else: price_str = f"${price:.2f}"
         icon = get_symbol_details(key)
-        card = f'<div class="ticker-item"><span class="t-label">{icon} {key}</span><span class="t-val">{price_str}</span><span class="t-delta {color}">{arrow} {change:.2f}%</span></div>'
+        
+        # KEY UPGRADE: Wrapped in <a> tag with query param
+        card = f"""
+        <a href="?chart={key}" target="_self" class="ticker-item">
+            <span class="t-label">{icon} {key}</span>
+            <span class="t-val">{price_str}</span>
+            <span class="t-delta {color}">{arrow} {change:.2f}%</span>
+        </a>
+        """
         html_content += card
     html_content += '</div>'
     st.markdown(html_content, unsafe_allow_html=True)
@@ -183,33 +214,22 @@ def render_economic_calendar(timezone_id):
     """
     components.html(html, height=800)
 
-# --- 4. DATA SOURCES & AI ---
+# --- 6. DATA SOURCES & AI ---
 
 @st.cache_data(ttl=600) 
 def get_rss_news(query):
-    """
-    Fetches news from Google News RSS using standard HTML parser.
-    This fixes the 'lxml not found' technical error.
-    """
     try:
         url = f"https://news.google.com/rss/search?q={query}+when:1d&hl=en-US&gl=US&ceid=US:en"
         r = requests.get(url, timeout=5)
-        
         soup = BeautifulSoup(r.content, features="html.parser")
         items = soup.findAll('item')
-        
         news_text = ""
         for item in items[:15]: 
             title = item.find('title').text if item.find('title') else "No Title"
             pubdate = item.find('pubdate').text if item.find('pubdate') else ""
             news_text += f"- {title} ({pubdate})\n"
-            
-        if not news_text:
-            return "No recent news found on Google News."
-            
-        return news_text
-    except Exception as e:
-        return f"News Feed Error: {str(e)}"
+        return news_text if news_text else "No recent news."
+    except Exception as e: return f"News Feed Error: {str(e)}"
 
 def resolve_best_model(api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
@@ -217,162 +237,73 @@ def resolve_best_model(api_key):
         response = requests.get(url)
         data = response.json()
         if 'error' in data: return None, data['error']['message']
-        valid_models = []
-        for m in data.get('models', []):
-            if 'generateContent' in m.get('supportedGenerationMethods', []):
-                clean_name = m['name'].replace("models/", "")
-                valid_models.append(clean_name)
-        
-        preferred_order = ["gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro"]
-        for pref in preferred_order:
-            if pref in valid_models: return pref, "OK"
-        if valid_models: return valid_models[0], "OK"
-        return None, "No valid models found."
+        valid_models = [m['name'].replace("models/", "") for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
+        preferred = ["gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro"]
+        for p in preferred:
+            if p in valid_models: return p, "OK"
+        return (valid_models[0], "OK") if valid_models else (None, "No valid models")
     except Exception as e: return None, str(e)
 
 @st.cache_data(ttl=3600, show_spinner="Analyzing...") 
 def generate_report(data_dump, mode, api_key):
-    if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
-    
+    if not api_key: return "⚠️ Please enter your Google API Key."
     clean_key = api_key.strip()
     active_model, status = resolve_best_model(clean_key)
-    
-    if not active_model: return f"❌ Model Discovery Failed: {status}"
+    if not active_model: return f"❌ Error: {status}"
     
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
-    
-    # --- ADJUSTED TOKEN LIMIT: 2500 ---
-    # Good balance between depth and speed/quota
     generation_config = {"maxOutputTokens": 2500}
 
     if mode == "BTC":
-        prompt = f"""
-        ROLE: Institutional Crypto Strategist.
-        TASK: Write a comprehensive Bitcoin briefing using the LIVE NEWS below.
-        LIVE NEWS FEED: 
-        {data_dump}
-        
-        OUTPUT FORMAT (Markdown):
-        ### ⚡️ LIVE MARKET PULSE
-        (Synthesize the headlines into a narrative. Bullish/Bearish?)
-        ### 🏦 INSTITUTIONAL FLOWS & REGULATION
-        (Analyze ETF, SEC, or Institutional mentions in the news.)
-        ### 🔮 PRICE ACTION SCENARIOS
-        (Bull/Bear Levels based on this news context)
-        """
+        prompt = f"""ROLE: Crypto Strategist. TASK: Bitcoin briefing. DATA: {data_dump}. OUTPUT: ### ⚡️ LIVE PULSE\n### 🏦 FLOWS\n### 🔮 SCENARIOS"""
     elif mode == "GEO":
-        prompt = f"""
-        ROLE: Geopolitical Risk Strategist.
-        TASK: Analyze global threats using the LIVE NEWS provided.
-        LIVE NEWS FEED: 
-        {data_dump}
-        
-        OUTPUT FORMAT (Markdown):
-        ### 🌍 THREAT MATRIX
-        (Synthesize the news headlines into a threat assessment.)
-        ### ⚔️ CONFLICT ZONES
-        (Specific updates on wars/tensions from the feed.)
-        ### 🛡 MARKET & COMMODITY IMPACT
-        (How this news affects Oil, Gold, and Risk Assets.)
-        """
+        prompt = f"""ROLE: Risk Analyst. TASK: Global threats. DATA: {data_dump}. OUTPUT: ### 🌍 THREAT MATRIX\n### ⚔️ FLASHPOINTS\n### 🛡 MARKET IMPACT"""
     else: # FX
-        prompt = f"""
-        ROLE: Lead FX Strategist.
-        TASK: Detailed Outlook for ALL 7 MAJOR CURRENCY PAIRS using LIVE NEWS.
-        LIVE NEWS FEED: 
-        {data_dump}
-        
-        OUTPUT FORMAT (Markdown):
-        **💵 US DOLLAR INDEX (DXY)**
-        (Analyze USD sentiment & Yield drivers from news.)
-        ---
-        ### 🇪🇺 EUR/USD
-        (Bias | Key Driver)
-        ### 🇬🇧 GBP/USD
-        (Bias | Key Driver)
-        ### 🇯🇵 USD/JPY
-        (Bias | Key Driver)
-        ### 🇨🇭 USD/CHF
-        (Bias | Safe Haven flows)
-        ### 🇦🇺 AUD/USD
-        (Bias | Commodity/China link)
-        ### 🇨🇦 USD/CAD
-        (Bias | Oil correlation)
-        ### 🇳🇿 NZD/USD
-        (Bias | Risk sentiment)
-        """
+        prompt = f"""ROLE: FX Strategist. TASK: Outlook 7 Major Pairs. DATA: {data_dump}. OUTPUT: **💵 DXY**\n---\n### 🇪🇺 EUR/USD\n### 🇬🇧 GBP/USD\n### 🇯🇵 USD/JPY\n### 🇨🇭 USD/CHF\n### 🇦🇺 AUD/USD\n### 🇨🇦 USD/CAD\n### 🇳🇿 NZD/USD"""
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{active_model}:generateContent?key={clean_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}], 
-        "safetySettings": safety_settings,
-        "generationConfig": generation_config
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "safetySettings": safety_settings, "generationConfig": generation_config}
     
     try:
         r = requests.post(url, headers=headers, json=payload)
-        response_json = r.json()
-        
-        if 'candidates' in response_json:
-            return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
-        
-        if 'error' in response_json:
-            err_msg = response_json['error'].get('message', '')
-            if response_json['error'].get('code') == 429:
-                return "⚠️ **High Traffic:** Google is cooling down your key. Wait 20s and try again."
-            return f"❌ Error: {err_msg}"
-                
-    except Exception as e:
-        return f"System Error: {str(e)}"
-            
-    return "❌ Connection Failed."
+        return r.json()['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ") if 'candidates' in r.json() else f"❌ Error: {r.json().get('error', {}).get('message', 'Unknown')}"
+    except Exception as e: return f"System Error: {str(e)}"
 
-# --- 5. SIDEBAR ---
+# --- 7. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("Update v15.35")
+    st.title("💠 Callums Terminals")
+    st.caption("Update v15.36 (Interactive)")
     st.markdown("---")
     
     api_key = None
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip()
-            st.success("🔑 Key securley Loaded")
+            st.success("🔑 Key Loaded")
         else:
-            api_key = st.text_input("Use API Key to connect to server", type="password")
-    except Exception:
-        api_key = st.text_input("Use API Key to connect to server", type="password")
+            api_key = st.text_input("Use API Key", type="password")
+    except:
+        api_key = st.text_input("Use API Key", type="password")
     
     if api_key: api_key = api_key.strip()
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
-    
-    tz_map = {"London (GMT)": 2, "London (Alt)": 42, "New York (EST)": 8, "Tokyo (JST)": 18}
-    selected_tz = st.selectbox("Calendar Timezone:", list(tz_map.keys()), index=0)
-    
-    st.markdown("---")
-    
-    if api_key:
-        if 'active_model_name' not in st.session_state:
-            found_model, _ = resolve_best_model(api_key)
-            if found_model:
-                st.session_state['active_model_name'] = found_model
-        
-        current_model = st.session_state.get('active_model_name', "Scanning...")
-        st.info(f"🟢 Connected: {current_model}")
+    tz_map = {"London (GMT)": 2, "New York (EST)": 8, "Tokyo (JST)": 18}
+    selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
     
     st.markdown("---")
-    st.success("● NETWORK: SECURE")
+    if api_key: st.success("● NETWORK: SECURE")
 
-# --- 6. MAIN DASHBOARD ---
+# --- 8. MAIN DASHBOARD ---
 st.title("TERMINAL DASHBOARD 🖥️")
+st.caption("Click any ticker below to view its live chart.")
 st.markdown("---")
 
 col_sel, col_space = st.columns([1, 2])
 with col_sel:
-    selected_market = st.selectbox("Select Market View:", ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices", "Custom"], index=0)
+    selected_market = st.selectbox("Select Market View:", ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices"], index=0)
 
 market_map = {
     "Standard": {"BTC": "BTC-USD", "EUR": "EURUSD=X", "USD": "DX-Y.NYB", "GOLD": "GC=F", "OIL": "CL=F"},
@@ -381,62 +312,58 @@ market_map = {
     "Tech Stocks": {"NVDA": "NVDA", "TSLA": "TSLA", "AAPL": "AAPL", "MSFT": "MSFT", "GOOG": "GOOG"},
     "Indices": {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI", "VIX": "^VIX", "FTSE": "^FTSE"}
 }
-
-if selected_market == "Custom":
-    with st.expander("🛠 Configure Custom Tickers", expanded=True):
-        c1, c2, c3, c4, c5 = st.columns(5)
-        t1 = c1.text_input("Ticker 1", value="BTC-USD")
-        t2 = c2.text_input("Ticker 2", value="NVDA")
-        t3 = c3.text_input("Ticker 3", value="EURUSD=X")
-        t4 = c4.text_input("Ticker 4", value="GC=F")
-        t5 = c5.text_input("Ticker 5", value="^GSPC")
-    active_tickers = {t1:t1, t2:t2, t3:t3, t4:t4, t5:t5}
-else:
-    active_tickers = market_map[selected_market]
-
+active_tickers = market_map[selected_market]
 market_data = get_market_data(active_tickers)
 if market_data: render_ticker_bar(market_data)
 
 st.markdown("---")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗞️Bitcoin", "🌍Currencies", "🌐Geopolitics", "📅 Calendar", "📈Charts"])
+# --- CUSTOM NAVIGATION (REPLACES st.tabs) ---
+# This allows us to programmatically switch tabs when a ticker is clicked
+nav_options = ["Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
+cols = st.columns(len(nav_options))
 
-with tab1:
+# Render Navigation Buttons
+for i, option in enumerate(nav_options):
+    if cols[i].button(option, use_container_width=True, type="primary" if st.session_state['active_view'] == option else "secondary"):
+        st.session_state['active_view'] = option
+        st.rerun()
+
+st.markdown("---")
+
+# --- RENDER ACTIVE VIEW ---
+view = st.session_state['active_view']
+
+if view == "Bitcoin":
     col_a, col_b = st.columns([1, 2])
     with col_a:
-        st.subheader("BTC Fear & Greed ")
+        st.subheader("BTC Fear & Greed")
         render_gauge(get_crypto_fng(), "")
-        st.caption("0 = Ext. Fear | 100 = Ext. Greed")
     with col_b:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             raw_news = ""
             with st.spinner("Streaming Google News Feed..."):
                 raw_news = get_rss_news("Bitcoin crypto")
-            
             st.info("⏳ Analyzing Live Headlines...")
             report = generate_report(raw_news, "BTC", api_key)
             st.session_state['btc_rep'] = report
-            st.rerun() 
-            
+            st.rerun()
         if 'btc_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["btc_rep"]}</div>', unsafe_allow_html=True)
 
-with tab2:
+elif view == "Currencies":
     col_a, col_b = st.columns([1, 2])
     with col_a:
         st.subheader("Macro Sentiment")
         macro_score, _ = get_macro_fng()
         render_gauge(macro_score, "")
-        st.caption("High Score = Risk On (Greed)\nLow Score = Risk Off (Fear)")
     with col_b:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             raw_news = ""
             with st.spinner("Streaming Google News Feed..."):
-                # Updated query to catch news on all majors
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex")
-            
             st.info("⏳ Analyzing Live Headlines...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
@@ -444,13 +371,12 @@ with tab2:
         if 'fx_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
-with tab3:
+elif view == "Geopolitics":
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Streaming Google News Feed..."):
             raw_news += get_rss_news("Geopolitics War Oil Gold Economy")
-        
         st.info("⏳ Analyzing Live Headlines...")
         report = generate_report(raw_news, "GEO", api_key)
         st.session_state['geo_rep'] = report
@@ -458,11 +384,32 @@ with tab3:
     if 'geo_rep' in st.session_state:
         st.markdown(f'<div class="terminal-card">{st.session_state["geo_rep"]}</div>', unsafe_allow_html=True)
 
-with tab4:
+elif view == "Calendar":
     st.subheader("High Impact Economic Events")
     render_economic_calendar(tz_map[selected_tz])
 
-with tab5:
-    st.subheader("Live Market Data")
-    selected_label = st.selectbox("Select Asset Class:", ["COINBASE:BTCUSD", "TVC:DXY", "OANDA:XAUUSD", "TVC:USOIL", "FX:EURUSD", "FX:GBPUSD", "FX:USDJPY"])
-    render_chart(selected_label)
+elif view == "Charts":
+    st.subheader(f"Live Chart: {st.session_state['active_chart']}")
+    
+    # Selection logic for manual override
+    asset_map = {
+        "Bitcoin (BTC/USD)": "COINBASE:BTCUSD", "Dollar Index (DXY)": "TVC:DXY",
+        "Gold (XAU/USD)": "OANDA:XAUUSD", "Crude Oil (WTI)": "TVC:USOIL",
+        "EUR / USD": "FX:EURUSD", "GBP / USD": "FX:GBPUSD", "USD / JPY": "FX:USDJPY"
+    }
+    
+    # Find current key from value to set default
+    default_ix = 0
+    current_val = st.session_state['active_chart']
+    vals = list(asset_map.values())
+    if current_val in vals:
+        default_ix = vals.index(current_val)
+        
+    selected_label = st.selectbox("Select Asset Class:", list(asset_map.keys()), index=default_ix)
+    
+    # Update state if changed manually
+    if asset_map[selected_label] != current_val:
+        st.session_state['active_chart'] = asset_map[selected_label]
+        st.rerun()
+        
+    render_chart(st.session_state['active_chart'])
