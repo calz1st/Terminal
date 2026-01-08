@@ -193,28 +193,29 @@ def scrape_site(url, limit):
         return f"[[SOURCE: {url}]]\n" + " ".join(texts)[:limit] + "\n\n"
     except: return ""
 
-def debug_connection(api_key):
-    """Runs a raw test against Google's API to see exactly what's breaking."""
-    # We test with GEMINI-PRO (the most compatible model)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
-    
+def list_real_models(api_key):
+    """Hits Google API to find what models actually exist for this key."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
-        r = requests.post(url, headers=headers, json=payload)
-        return r.status_code, r.text # Return RAW text from Google
-    except Exception as e:
-        return 0, str(e)
+        response = requests.get(url)
+        data = response.json()
+        
+        if 'error' in data: return []
+        
+        # Filter for models that support "generateContent"
+        valid_models = []
+        for m in data.get('models', []):
+            if 'generateContent' in m.get('supportedGenerationMethods', []):
+                # Clean the name (remove 'models/' prefix)
+                clean_name = m['name'].replace("models/", "")
+                valid_models.append(clean_name)
+        return valid_models
+    except: return []
 
 def generate_report(data_dump, mode, api_key, model_choice):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
     clean_key = api_key.strip()
-    
-    # --- HARD RESET: Force 'gemini-pro' (1.0) ---
-    # We ignore the model_choice if it's causing issues and default to the most stable one.
-    fallback_chain = ["gemini-pro", "gemini-1.0-pro"] 
-
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
 
@@ -225,62 +226,42 @@ def generate_report(data_dump, mode, api_key, model_choice):
     else:
         prompt = f"""ROLE: FX Strat. TASK: Major Pairs Outlook. OUTPUT: **💵 DXY** \n ### 🇪🇺 EUR/USD"""
 
-    for model in fallback_chain:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={clean_key}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "safetySettings": safety_settings}
+    # Use the EXACT model chosen from the real list
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_choice}:generateContent?key={clean_key}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "safetySettings": safety_settings}
+    
+    try:
+        r = requests.post(url, headers=headers, json=payload)
+        response_json = r.json()
         
-        try:
-            r = requests.post(url, headers=headers, json=payload)
-            response_json = r.json()
+        if 'candidates' in response_json and len(response_json['candidates']) > 0:
+            return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
+        
+        if 'error' in response_json:
+            return f"❌ Error: {response_json['error'].get('message')}"
+                
+    except Exception as e:
+        return f"System Error: {str(e)}"
             
-            if 'candidates' in response_json and len(response_json['candidates']) > 0:
-                return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
-            
-            if 'error' in response_json:
-                err_code = response_json['error'].get('code')
-                # If 404 (Model not found), just loop to the next one silently
-                if err_code == 404:
-                    continue
-                # If 429 (Busy), wait and loop
-                if err_code in [429, 503]:
-                    time.sleep(1)
-                    continue
-                    
-        except Exception:
-            continue
-            
-    return "❌ Connection Failed. Please check your API Key."
+    return "❌ Connection Failed."
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.20")
+    st.caption("Update v15.21 (Auto-Fix)")
     st.markdown("---")
     
     api_key = None
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip()
-            st.success("🔑 Key Loaded Securely")
+            st.success("🔑 Key Loaded")
         else:
             api_key = st.text_input("Use API Key to connect to server", type="password")
     except Exception:
         api_key = st.text_input("Use API Key to connect to server", type="password")
     
     if api_key: api_key = api_key.strip()
-
-    # --- DIAGNOSTIC BUTTON ---
-    if st.button("🔴 TEST CONNECTION", type="secondary"):
-        if not api_key:
-            st.error("No Key Entered")
-        else:
-            with st.spinner("Pinging Google..."):
-                code, raw_resp = debug_connection(api_key)
-                if code == 200:
-                    st.success("✅ Connection Successful! (Using Gemini Pro)")
-                else:
-                    st.error(f"❌ Failed (Code {code})")
-                    st.error(raw_resp) 
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
@@ -291,10 +272,24 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🤖 Model Selector")
     
-    # --- HARD RESET: Only show 1.0 models ---
-    model_options = ["gemini-pro"]
-    
-    # RENAMED KEY TO FORCE RESET vvv
+    # --- AUTO DISCOVERY LOGIC ---
+    if api_key:
+        # Check if we already found them to save time
+        if 'verified_models' not in st.session_state:
+            with st.spinner("Finding valid models..."):
+                found_models = list_real_models(api_key)
+                if found_models:
+                    st.session_state['verified_models'] = found_models
+                    st.success(f"Found {len(found_models)} valid models")
+                else:
+                    st.error("Could not find ANY valid models for this key.")
+        
+        # Use the found list, or a safe fallback
+        model_options = st.session_state.get('verified_models', ["gemini-pro"])
+    else:
+        model_options = ["Enter API Key first"]
+
+    # This box now only contains models we KNOW exist
     model_choice = st.selectbox("Active AI Engine:", model_options, index=0)
     
     st.markdown("---")
@@ -345,8 +340,8 @@ with tab1:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             with st.status("Accessing Feed...", expanded=True):
-                # Using 'gemini-pro' as default now
-                report = generate_report("", "BTC", api_key, "gemini-pro")
+                # Pass the USER SELECTED model
+                report = generate_report("", "BTC", api_key, model_choice)
                 st.session_state['btc_rep'] = report
         if 'btc_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["btc_rep"]}</div>', unsafe_allow_html=True)
@@ -362,7 +357,7 @@ with tab2:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             with st.status("Accessing Feed...", expanded=True):
-                report = generate_report("", "FX", api_key, "gemini-pro")
+                report = generate_report("", "FX", api_key, model_choice)
                 st.session_state['fx_rep'] = report
         if 'fx_rep' in st.session_state:
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
@@ -371,7 +366,7 @@ with tab3:
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         with st.status("Accessing Feed...", expanded=True):
-            report = generate_report("", "GEO", api_key, "gemini-pro")
+            report = generate_report("", "GEO", api_key, model_choice)
             st.session_state['geo_rep'] = report
     if 'geo_rep' in st.session_state:
         st.markdown(f'<div class="terminal-card">{st.session_state["geo_rep"]}</div>', unsafe_allow_html=True)
