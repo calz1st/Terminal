@@ -186,31 +186,32 @@ def render_economic_calendar(timezone_id):
 # --- 4. DATA SOURCES & AI ---
 
 @st.cache_data(ttl=600) 
-def get_latest_news(symbol):
+def get_rss_news(query):
     """
-    Fetches REAL-TIME news from Yahoo Finance API.
-    Replaces the broken web scraper.
+    Fetches news from Google News RSS.
+    This is robust, free, and provides real-time headlines without blocking.
     """
     try:
-        ticker = yf.Ticker(symbol)
-        news_list = ticker.news
+        # Google News RSS URL
+        url = f"https://news.google.com/rss/search?q={query}+when:1d&hl=en-US&gl=US&ceid=US:en"
+        r = requests.get(url, timeout=5)
         
-        if not news_list:
-            return "No recent news found."
+        # Simple XML parsing using BeautifulSoup
+        soup = BeautifulSoup(r.content, features="xml")
+        items = soup.findAll('item')
+        
+        news_text = ""
+        for item in items[:15]: # Get top 15 headlines
+            title = item.title.text
+            pubdate = item.pubDate.text
+            news_text += f"- {title} ({pubdate})\n"
             
-        formatted_news = ""
-        count = 0
-        for item in news_list:
-            if count >= 5: break # Limit to top 5 stories
-            title = item.get('title', 'No Title')
-            publisher = item.get('publisher', 'Unknown')
-            # Extract basic text
-            formatted_news += f"- {title} (Source: {publisher})\n"
-            count += 1
+        if not news_text:
+            return "No recent news found on Google News."
             
-        return formatted_news
-    except Exception:
-        return "News feed currently unavailable."
+        return news_text
+    except Exception as e:
+        return f"News Feed Error: {str(e)}"
 
 def resolve_best_model(api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
@@ -244,7 +245,7 @@ def generate_report(data_dump, mode, api_key):
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
     generation_config = {"maxOutputTokens": 2500}
 
-    # --- UPDATED PROMPTS FOR "LIVE-LINK" MODE ---
+    # PROMPTS
     if mode == "BTC":
         prompt = f"""
         ROLE: Institutional Crypto Strategist.
@@ -254,11 +255,11 @@ def generate_report(data_dump, mode, api_key):
         
         OUTPUT FORMAT (Markdown):
         ### ⚡️ LIVE MARKET PULSE
-        (Synthesize the news headlines above into a narrative. Is the mood Bullish or Bearish right now?)
-        ### 🏦 INSTITUTIONAL FLOWS
-        (Analyze any ETF or Institutional mentions in the news.)
-        ### 🔮 SCENARIO PLANNING
-        (Bull/Bear Levels based on this news)
+        (Synthesize the headlines into a narrative. Bullish/Bearish?)
+        ### 🏦 INSTITUTIONAL FLOWS & REGULATION
+        (Analyze ETF, SEC, or Institutional mentions in the news.)
+        ### 🔮 PRICE ACTION SCENARIOS
+        (Bull/Bear Levels based on this news context)
         """
     elif mode == "GEO":
         prompt = f"""
@@ -270,10 +271,10 @@ def generate_report(data_dump, mode, api_key):
         OUTPUT FORMAT (Markdown):
         ### 🌍 THREAT MATRIX
         (Synthesize the news headlines into a threat assessment.)
-        ### ⚔️ FLASHPOINTS
-        (Specific conflicts mentioned in the feed.)
-        ### 🛡 MARKET IMPACT
-        (How this news affects Gold, Oil, and Safe Havens.)
+        ### ⚔️ CONFLICT ZONES
+        (Specific updates on wars/tensions from the feed.)
+        ### 🛡 MARKET & COMMODITY IMPACT
+        (How this news affects Oil, Gold, and Risk Assets.)
         """
     else: # FX
         prompt = f"""
@@ -322,7 +323,7 @@ def generate_report(data_dump, mode, api_key):
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.31 (Live-Feed)")
+    st.caption("Update v15.32 (RSS Command)")
     st.markdown("---")
     
     api_key = None
@@ -402,10 +403,10 @@ with tab1:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             raw_news = ""
-            with st.spinner("Fetching Live Feed..."):
-                raw_news = get_latest_news("BTC-USD")
+            with st.spinner("Streaming Google News Feed..."):
+                raw_news = get_rss_news("Bitcoin crypto")
             
-            st.info("⏳ Analyzing Live Data...")
+            st.info("⏳ Analyzing Live Headlines...")
             report = generate_report(raw_news, "BTC", api_key)
             st.session_state['btc_rep'] = report
             st.rerun() 
@@ -424,12 +425,10 @@ with tab2:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             raw_news = ""
-            with st.spinner("Fetching Live Feed..."):
-                # Fetch news for DXY and Major Pairs
-                raw_news += get_latest_news("DX-Y.NYB") + "\n"
-                raw_news += get_latest_news("EURUSD=X")
+            with st.spinner("Streaming Google News Feed..."):
+                raw_news += get_rss_news("USD EUR GBP JPY Forex")
             
-            st.info("⏳ Analyzing Live Data...")
+            st.info("⏳ Analyzing Live Headlines...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -440,12 +439,10 @@ with tab3:
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         raw_news = ""
-        with st.spinner("Fetching Live Feed..."):
-            # Fetch news for Oil and Gold as proxies for Geopolitics
-            raw_news += get_latest_news("CL=F") + "\n"
-            raw_news += get_latest_news("GC=F")
+        with st.spinner("Streaming Google News Feed..."):
+            raw_news += get_rss_news("Geopolitics War Oil Gold Economy")
         
-        st.info("⏳ Analyzing Live Data...")
+        st.info("⏳ Analyzing Live Headlines...")
         report = generate_report(raw_news, "GEO", api_key)
         st.session_state['geo_rep'] = report
         st.rerun()
