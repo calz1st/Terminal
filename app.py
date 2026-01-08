@@ -7,6 +7,7 @@ import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import random
+import textwrap
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -30,7 +31,7 @@ st.markdown("""
         /* Report Cards */
         .terminal-card {
             background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px;
-            padding: 30px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 25px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         
         /* Buttons */
@@ -179,14 +180,14 @@ def render_economic_calendar(timezone_id):
     """
     components.html(html, height=800)
 
-# --- 4. OFFLINE BACKUP GENERATOR ---
+# --- 4. OFFLINE BACKUP GENERATOR (FIXED INDENTATION) ---
 def generate_offline_report(mode):
-    """Generates a professional-looking report WITHOUT needing Google API."""
     timestamp = time.strftime("%H:%M UTC")
     
     if mode == "BTC":
-        return f"""
-        ### ⚡️ BITCOIN MARKET UPDATE (OFFLINE MODE)
+        # We use textwrap.dedent to remove the spaces that cause the "Box" look
+        return textwrap.dedent(f"""
+        ### ⚡️ BITCOIN MARKET UPDATE (OFFLINE)
         **Time:** {timestamp}
         
         **Price Action:** Bitcoin is currently consolidating. The market is waiting for a decisive breakout above recent resistance or a breakdown below support.
@@ -198,10 +199,11 @@ def generate_offline_report(mode):
         * **Support:** $92,000 / $88,500 (Key demand zone)
         
         **Trade Plan:** Watch for volume confirmation at these levels. Avoid over-leveraging in this chop.
-        """
+        """).strip()
+    
     elif mode == "GEO":
-        return f"""
-        ### ⚠️ GEOPOLITICAL RISK SCAN (OFFLINE MODE)
+        return textwrap.dedent(f"""
+        ### ⚠️ GEOPOLITICAL RISK SCAN (OFFLINE)
         **Time:** {timestamp}
         
         **Threat Level:** ELEVATED
@@ -213,10 +215,11 @@ def generate_offline_report(mode):
         ### 🛢 COMMODITIES IMPACT
         * **Gold:** Acting as a safe haven amid uncertainty.
         * **Oil:** Price action remains sensitive to headlines.
-        """
+        """).strip()
+        
     else:
-        return f"""
-        ### 💵 GLOBAL FX OUTLOOK (OFFLINE MODE)
+        return textwrap.dedent(f"""
+        ### 💵 GLOBAL FX OUTLOOK (OFFLINE)
         **Time:** {timestamp}
         
         **DXY (Dollar Index):** Holding steady. The USD is reacting to recent yield curve movements.
@@ -228,7 +231,7 @@ def generate_offline_report(mode):
         ### 🇯🇵 USD/JPY
         * **Bias:** Bullish.
         * **Driver:** Yield spread differential favors USD.
-        """
+        """).strip()
 
 # --- 5. REPORT GENERATION LOGIC ---
 
@@ -238,9 +241,7 @@ def generate_report(mode, api_key):
     
     clean_key = api_key.strip()
     
-    # 1. ATTEMPT GOOGLE CONNECTION
     try:
-        # We use 'gemini-pro' because it is the most universal model ID.
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={clean_key}"
         headers = {'Content-Type': 'application/json'}
         
@@ -252,23 +253,20 @@ def generate_report(mode, api_key):
         
         r = requests.post(url, headers=headers, json=payload, timeout=8)
         
-        # 2. SUCCESS? RETURN GOOGLE'S ANSWER
         if r.status_code == 200:
             data = r.json()
             if 'candidates' in data:
                 return data['candidates'][0]['content']['parts'][0]['text']
                 
     except Exception:
-        pass # Silently fail to the backup
+        pass 
     
-    # 3. FAILURE? RETURN OFFLINE BACKUP (The Nuclear Option)
-    # If code reaches here, Google failed/crashed/404'd. We return the backup.
     return generate_offline_report(mode)
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.26 (Fail-Safe)")
+    st.caption("Update v15.27 (Clean UI)")
     st.markdown("---")
     
     api_key = None
