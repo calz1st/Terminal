@@ -187,7 +187,7 @@ def scrape_site(url, limit):
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(r.content, 'html.parser')
-        # SUPER LITE MODE: Only 1000 chars per site
+        # SUPER LITE MODE: Only 800 chars per site
         texts = [p.get_text() for p in soup.find_all(['h1', 'h2', 'p'])]
         return f"[[SOURCE: {url}]]\n" + " ".join(texts)[:limit] + "\n\n"
     except: return ""
@@ -206,15 +206,18 @@ def generate_report(data_dump, mode, api_key, model_choice):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
     # SAFETY DELAY
-    time.sleep(5)
+    time.sleep(3)
     
-    # ULTRA LITE CONTEXT (Only 2500 chars total)
-    safe_data = data_dump[:2500]
+    # ULTRA LITE CONTEXT (Only 2000 chars total)
+    safe_data = data_dump[:2000]
     
-    fallback_chain = [model_choice]
-    safe_defaults = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash"]
-    for m in safe_defaults:
-        if m not in fallback_chain: fallback_chain.append(m)
+    # --- CRITICAL FIX: FORCE 1.5 FLASH FIRST ---
+    # We prioritize 1.5-flash because it is STABLE and has higher rate limits.
+    fallback_chain = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"]
+    
+    # If user selected a specific model, try that first, but fallback to 1.5
+    if model_choice not in fallback_chain:
+        fallback_chain.insert(0, model_choice)
 
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
@@ -287,7 +290,7 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
     for model in fallback_chain:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        wait_times = [6, 12] # Standard wait
+        wait_times = [5, 10] 
         for wait in wait_times:
             try:
                 r = requests.post(url, headers=headers, json=payload)
@@ -296,6 +299,7 @@ def generate_report(data_dump, mode, api_key, model_choice):
                     return response_json['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ")
                 if 'error' in response_json:
                     code = response_json['error'].get('code', 0)
+                    # If overloaded, wait and try next model
                     if code in [429, 503]:
                         time.sleep(wait)
                         continue
@@ -303,16 +307,15 @@ def generate_report(data_dump, mode, api_key, model_choice):
             except Exception:
                 time.sleep(1); continue
                 
-    return "⚠️ Server Busy. Please wait 2 minutes."
+    return "⚠️ System Overloaded. Try again in 1 minute."
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.14")
+    st.caption("Update v15.15")
     st.markdown("---")
     
     api_key = None
-    # SIMPLE SAFETY CHECK (No imports required)
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"]
@@ -320,7 +323,6 @@ with st.sidebar:
         else:
             api_key = st.text_input("Use API Key to connect to server", type="password")
     except Exception:
-        # If secrets file missing, just show input box
         api_key = st.text_input("Use API Key to connect to server", type="password")
     
     st.markdown("---")
@@ -350,12 +352,14 @@ with st.sidebar:
 
     if available_models:
         model_options = available_models
+        # AUTO SELECT: Prioritize 1.5-flash for stability
         default_index = 0
         for i, m in enumerate(model_options):
-            if "gemini-2.0-flash" in m and "exp" not in m: default_index = i; break
-            elif "gemini-2.0-flash-exp" in m: default_index = i
+            if "gemini-1.5-flash" in m and "8b" not in m: 
+                default_index = i
+                break
     else:
-        model_options = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.5-flash"]
+        model_options = ["gemini-1.5-flash", "gemini-2.0-flash-exp"]
         default_index = 0
 
     model_choice = st.selectbox("Active Model:", model_options, index=default_index)
@@ -422,8 +426,8 @@ with tab1:
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             with st.status("Accessing Institutional Feeds...", expanded=True):
                 raw = ""
-                # ULTRA LITE SCRAPING (1000 CHARS)
-                for s in BTC_SOURCES: raw += scrape_site(s, 1000)
+                # ULTRA LITE SCRAPING (800 CHARS)
+                for s in BTC_SOURCES: raw += scrape_site(s, 800)
                 st.write("Synthesizing Report...")
                 report = generate_report(raw, "BTC", api_key, model_choice)
                 st.session_state['btc_rep'] = report
@@ -444,7 +448,7 @@ with tab2:
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             with st.status("Analyzing 7 Majors...", expanded=True):
                 raw = ""
-                for s in FX_SOURCES: raw += scrape_site(s, 1000)
+                for s in FX_SOURCES: raw += scrape_site(s, 800)
                 st.write("Running Quant Analysis...")
                 report = generate_report(raw, "FX", api_key, model_choice)
                 st.session_state['fx_rep'] = report
@@ -459,7 +463,7 @@ with tab3:
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         with st.status("Scanning Classified Channels...", expanded=True):
             raw = ""
-            for s in GEO_SOURCES: raw += scrape_site(s, 1000)
+            for s in GEO_SOURCES: raw += scrape_site(s, 800)
             st.write("Assessing Threat/volatility Levels...")
             report = generate_report(raw, "GEO", api_key, model_choice)
             st.session_state['geo_rep'] = report
