@@ -5,7 +5,6 @@ import time
 import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
-from streamlit.runtime.secrets import SecretsNotFoundError
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -188,7 +187,7 @@ def scrape_site(url, limit):
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(r.content, 'html.parser')
-        # REDUCED LIMIT TO 1500 TO PREVENT OVERLOAD
+        # SUPER LITE MODE: Only 1000 chars per site
         texts = [p.get_text() for p in soup.find_all(['h1', 'h2', 'p'])]
         return f"[[SOURCE: {url}]]\n" + " ".join(texts)[:limit] + "\n\n"
     except: return ""
@@ -206,11 +205,11 @@ def list_available_models(api_key):
 def generate_report(data_dump, mode, api_key, model_choice):
     if not api_key: return "⚠️ Please enter your Google API Key in the sidebar."
     
-    # INCREASED SAFETY DELAY
-    time.sleep(8)
+    # SAFETY DELAY
+    time.sleep(5)
     
-    # REDUCED CONTEXT WINDOW (SEND LESS TEXT)
-    safe_data = data_dump[:5000]
+    # ULTRA LITE CONTEXT (Only 2500 chars total)
+    safe_data = data_dump[:2500]
     
     fallback_chain = [model_choice]
     safe_defaults = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash"]
@@ -222,54 +221,54 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
     if mode == "BTC":
         prompt_text = f"""
-        ROLE: Hedge Fund Analyst.
-        TASK: Brief Bitcoin report.
+        ROLE: Analyst.
+        TASK: Brief Bitcoin update.
         DATA: {safe_data}
         OUTPUT:
-        ### ⚡️ BITCOIN SUMMARY
-        (Price & Narrative)
+        ### ⚡️ SUMMARY
+        (Price/Narrative)
         ### 🐋 SENTIMENT
-        (Flows & Fear/Greed)
+        (Flows/Greed)
         ### 🧱 LEVELS
-        (Support/Resistance)
+        (Supp/Res)
         ### 🎯 PLAN
         (Bull/Bear)
         """
     elif mode == "GEO":
         prompt_text = f"""
-        ROLE: Geopolitical Analyst.
-        TASK: Market Impact report.
+        ROLE: Risk Analyst.
+        TASK: Market Impact.
         DATA: {safe_data}
         OUTPUT:
-        ### ⚠️ THREAT LEVEL
-        (Status & Focus)
+        ### ⚠️ THREATS
+        (Status)
         ---
         ### 🛢 ENERGY
-        (Supply Impact)
+        (Oil/Gold)
         ---
         ### 🛡 DEFENSE
-        (Conflict Zones)
+        (Conflicts)
         ---
-        ### 💵 FX RISK
+        ### 💵 FX
         (Safe Havens)
         """
     else: # FX
         prompt_text = f"""
-        ROLE: Macro Strategist.
-        TASK: FX Outlook (7 Majors).
+        ROLE: FX Strat.
+        TASK: 7 Major Pairs Outlook.
         DATA: {safe_data}
         OUTPUT (Use \\n\\n before headers):
-        **💵 DXY MACRO**
-        (Concise structure & yields)
+        **💵 DXY**
+        (Brief)
         ---
         ### 🇪🇺 EUR/USD
-        (Bias & Drivers)
+        (Bias)
         ---
         ### 🇬🇧 GBP/USD
-        (Bias & Drivers)
+        (Bias)
         ---
         ### 🇯🇵 USD/JPY
-        (Bias & Drivers)
+        (Bias)
         ---
         ### 🇨🇭 USD/CHF
         (Bias)
@@ -288,7 +287,7 @@ def generate_report(data_dump, mode, api_key, model_choice):
 
     for model in fallback_chain:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        wait_times = [8, 15] # LONGER WAITS
+        wait_times = [6, 12] # Standard wait
         for wait in wait_times:
             try:
                 r = requests.post(url, headers=headers, json=payload)
@@ -309,19 +308,19 @@ def generate_report(data_dump, mode, api_key, model_choice):
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.13")
+    st.caption("Update v15.14")
     st.markdown("---")
     
     api_key = None
+    # SIMPLE SAFETY CHECK (No imports required)
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"]
             st.success("🔑 Key Loaded Securely")
         else:
             api_key = st.text_input("Use API Key to connect to server", type="password")
-    except (FileNotFoundError, SecretsNotFoundError):
-        api_key = st.text_input("Use API Key to connect to server", type="password")
     except Exception:
+        # If secrets file missing, just show input box
         api_key = st.text_input("Use API Key to connect to server", type="password")
     
     st.markdown("---")
@@ -423,8 +422,8 @@ with tab1:
         if st.button("GENERATE BTC BRIEFING", type="primary"):
             with st.status("Accessing Institutional Feeds...", expanded=True):
                 raw = ""
-                # REDUCED LIMIT HERE
-                for s in BTC_SOURCES: raw += scrape_site(s, 1500)
+                # ULTRA LITE SCRAPING (1000 CHARS)
+                for s in BTC_SOURCES: raw += scrape_site(s, 1000)
                 st.write("Synthesizing Report...")
                 report = generate_report(raw, "BTC", api_key, model_choice)
                 st.session_state['btc_rep'] = report
@@ -445,7 +444,7 @@ with tab2:
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             with st.status("Analyzing 7 Majors...", expanded=True):
                 raw = ""
-                for s in FX_SOURCES: raw += scrape_site(s, 1500)
+                for s in FX_SOURCES: raw += scrape_site(s, 1000)
                 st.write("Running Quant Analysis...")
                 report = generate_report(raw, "FX", api_key, model_choice)
                 st.session_state['fx_rep'] = report
@@ -460,7 +459,7 @@ with tab3:
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
         with st.status("Scanning Classified Channels...", expanded=True):
             raw = ""
-            for s in GEO_SOURCES: raw += scrape_site(s, 1500)
+            for s in GEO_SOURCES: raw += scrape_site(s, 1000)
             st.write("Assessing Threat/volatility Levels...")
             report = generate_report(raw, "GEO", api_key, model_choice)
             st.session_state['geo_rep'] = report
