@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="QUANTUM | Hedge Fund Terminal",
+    page_title="Callums Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -250,7 +250,7 @@ def generate_report(data_dump, mode, api_key):
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminals")
+    st.title("💠 Callums Terminal")
     st.caption("Update v15.38 (Expanded Charts)")
     st.markdown("---")
     
@@ -258,7 +258,7 @@ with st.sidebar:
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             api_key = st.secrets["GOOGLE_API_KEY"].strip()
-            st.success("🔑 Key Loaded")
+            st.success("🔑 Key Loaded Securely")
         else:
             api_key = st.text_input("Use API Key", type="password")
     except:
@@ -268,7 +268,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("⚙️ Settings")
-    tz_map = {"London (GMT)": 2, "New York (EST)": 8, "Tokyo (JST)": 18}
+    tz_map = {"London (GMT)": 15, "New York (EST)": 8, "Tokyo (JST)": 18}
     selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
     
     st.markdown("---")
