@@ -10,7 +10,7 @@ import datetime
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="QUANTUM | Hedge Fund Terminal",
+    page_title="Callums Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -306,7 +306,7 @@ def generate_report(data_dump, mode, api_key):
 # --- 6. SIDEBAR (LIVE TERMINAL) ---
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
-    st.title("💠 QUANTUM")
+    st.title("💠 Callums Terminal")
     st.caption("v16.0 Obsidian-White")
     
     # Custom Date Display
@@ -326,7 +326,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("Settings")
-    tz_map = {"London (GMT)": 2, "New York (EST)": 8, "Tokyo (JST)": 18}
+    tz_map = {"London (GMT)": 15, "New York (EST)": 8, "Tokyo (JST)": 18}
     selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
 
 # --- 7. MAIN DASHBOARD ---
