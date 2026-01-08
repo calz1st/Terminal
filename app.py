@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="QUANTUM | Hedge Fund Terminal",
+    page_title="Callums Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -321,7 +321,7 @@ def generate_report(data_dump, mode, api_key):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminals")
+    st.title("💠 Callums Terminal")
     st.caption("Update v15.33 (Dependency-Free)")
     st.markdown("---")
     
