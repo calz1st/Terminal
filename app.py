@@ -184,6 +184,9 @@ def render_economic_calendar(timezone_id):
     components.html(html, height=800)
 
 # --- 4. DATA SOURCES & AI ---
+BTC_SOURCES = ["https://cointelegraph.com/tags/bitcoin", "https://u.today/bitcoin-news"]
+FX_SOURCES = ["https://www.fxstreet.com/news", "https://www.dailyfx.com/market-news"]
+GEO_SOURCES = ["https://oilprice.com/Geopolitics", "https://www.fxstreet.com/news/macroeconomics", "https://www.cnbc.com/world/?region=world"]
 
 @st.cache_data(ttl=600) 
 def scrape_site(url, limit):
@@ -196,7 +199,6 @@ def scrape_site(url, limit):
     except: return ""
 
 def resolve_best_model(api_key):
-    """Finds the best available model for the key."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
         response = requests.get(url)
@@ -230,53 +232,50 @@ def generate_report(data_dump, mode, api_key):
     
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
-    
-    # INCREASED OUTPUT CAPACITY (1200 Tokens) for deep crypto analysis
     generation_config = {"maxOutputTokens": 1200}
 
-    # --- ADVANCED PROMPTS FOR "DEEP CRYPTO" & "PRO ANALYST" MODES ---
+    # PROMPT WITH LIVE DATA INJECTION
     if mode == "BTC":
         prompt = f"""
         ROLE: Institutional Crypto Strategist.
-        TASK: Write a comprehensive, deep-dive Bitcoin briefing.
+        TASK: Write a comprehensive Bitcoin briefing using the LIVE DATA provided.
+        LIVE NEWS DATA: {data_dump}
         OUTPUT FORMAT (Markdown):
-        ### ⚡️ MARKET STRUCTURE & TREND
-        (Analyze Weekly/Daily structure, Volume Profiles, and Key Moving Averages)
+        ### ⚡️ LIVE MARKET STRUCTURE
+        (Analyze Current Price Action based on provided news)
         ### 🏦 INSTITUTIONAL FLOWS
-        (ETF Inflows/Outflows, Coinbase Premium, Institutional buying patterns)
-        ### 📊 DERIVATIVES HEALTH
-        (Funding Rates, Open Interest, Liquidation Heatmaps)
+        (ETF Inflows/Outflows & Sentiment)
         ### 🔮 SCENARIO PLANNING
-        (Bull Case: Confirmation needed / Bear Case: Invalidation levels)
+        (Bull/Bear Levels)
         """
     elif mode == "GEO":
         prompt = f"""
         ROLE: Geopolitical Risk Strategist.
-        TASK: Deep dive into global threats affecting markets.
+        TASK: Analyze global threats using the LIVE DATA provided.
+        LIVE NEWS DATA: {data_dump}
         OUTPUT FORMAT (Markdown):
         ### 🌍 EXECUTIVE SUMMARY
         (High-level threat assessment)
         ### ⚔️ REGIONAL FLASHPOINTS
-        (Detailed update on Middle East, Europe, or Asia tensions)
-        ### ⛓️ SUPPLY CHAIN & ENERGY
-        (Impact on Oil, Shipping Routes, and Tech Supply)
+        (Middle East/Europe tensions from news)
         ### 🛡 MARKET IMPLICATIONS
-        (Safe Haven flows: Gold, USD, CHF)
+        (Impact on Commodities/Safe Havens)
         """
     else: # FX
         prompt = f"""
         ROLE: Lead FX Strategist.
-        TASK: Concise Outlook for ALL 7 MAJORS.
+        TASK: Outlook for 7 MAJORS using LIVE DATA.
+        LIVE NEWS DATA: {data_dump}
         OUTPUT FORMAT (Markdown):
         **💵 DXY (DOLLAR INDEX)**
         (Structure & Yield Driver)
         ---
         ### 🇪🇺 EUR/USD
-        (Bias / Key Level / Driver)
+        (Bias / Key Level)
         ### 🇬🇧 GBP/USD
-        (Bias / Key Level / Driver)
+        (Bias / Key Level)
         ### 🇯🇵 USD/JPY
-        (Bias / Key Level / Driver)
+        (Bias / Key Level)
         ### 🇨🇭 USD/CHF
         (Bias / Key Level)
         ### 🇦🇺 AUD/USD
@@ -315,7 +314,7 @@ def generate_report(data_dump, mode, api_key):
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("💠 Callums Terminals")
-    st.caption("Update v15.27 (Deep Crypto)")
+    st.caption("Update v15.28 (Live-Link)")
     st.markdown("---")
     
     api_key = None
@@ -394,9 +393,14 @@ with tab1:
     with col_b:
         st.subheader("Market scan")
         if st.button("GENERATE BTC BRIEFING", type="primary"):
+            # RESTORED WEB SCRAPING HERE
+            raw_news = ""
+            with st.spinner("Acquiring Live Intel..."):
+                for url in BTC_SOURCES:
+                    raw_news += scrape_site(url, 500)
+            
             st.info("⏳ Negotiating with Google AI...")
-            # We don't pass model choice anymore; the function finds it
-            report = generate_report("", "BTC", api_key)
+            report = generate_report(raw_news, "BTC", api_key)
             st.session_state['btc_rep'] = report
             st.rerun() 
             
@@ -413,8 +417,14 @@ with tab2:
     with col_b:
         st.subheader("Global FX Strategy")
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
+            # RESTORED WEB SCRAPING HERE
+            raw_news = ""
+            with st.spinner("Acquiring Live Intel..."):
+                for url in FX_SOURCES:
+                    raw_news += scrape_site(url, 500)
+            
             st.info("⏳ Negotiating with Google AI...")
-            report = generate_report("", "FX", api_key)
+            report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
         if 'fx_rep' in st.session_state:
@@ -423,8 +433,14 @@ with tab2:
 with tab3:
     st.subheader("Geopolitical Risk Intelligence")
     if st.button("RUN GEOPOLITICAL SCAN", type="primary"):
+        # RESTORED WEB SCRAPING HERE
+        raw_news = ""
+        with st.spinner("Acquiring Live Intel..."):
+            for url in GEO_SOURCES:
+                raw_news += scrape_site(url, 500)
+        
         st.info("⏳ Negotiating with Google AI...")
-        report = generate_report("", "GEO", api_key)
+        report = generate_report(raw_news, "GEO", api_key)
         st.session_state['geo_rep'] = report
         st.rerun()
     if 'geo_rep' in st.session_state:
