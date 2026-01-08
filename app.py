@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="Callums Terminal",
+    page_title="QUANTUM | Hedge Fund Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -195,13 +195,11 @@ def get_rss_news(query):
         url = f"https://news.google.com/rss/search?q={query}+when:1d&hl=en-US&gl=US&ceid=US:en"
         r = requests.get(url, timeout=5)
         
-        # --- CRITICAL FIX: Use 'html.parser' instead of 'xml' ---
         soup = BeautifulSoup(r.content, features="html.parser")
         items = soup.findAll('item')
         
         news_text = ""
         for item in items[:15]: 
-            # In HTML parser, tags might be lowercased, so we look for 'title' and 'pubdate'
             title = item.find('title').text if item.find('title') else "No Title"
             pubdate = item.find('pubdate').text if item.find('pubdate') else ""
             news_text += f"- {title} ({pubdate})\n"
@@ -243,7 +241,9 @@ def generate_report(data_dump, mode, api_key):
     
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
-    generation_config = {"maxOutputTokens": 2500}
+    
+    # INCREASED CAPACITY FOR FULL 7-PAIR BREAKDOWN
+    generation_config = {"maxOutputTokens": 3000}
 
     if mode == "BTC":
         prompt = f"""
@@ -278,20 +278,28 @@ def generate_report(data_dump, mode, api_key):
     else: # FX
         prompt = f"""
         ROLE: Lead FX Strategist.
-        TASK: Outlook for Major Currencies using LIVE NEWS.
+        TASK: Detailed Outlook for ALL 7 MAJOR CURRENCY PAIRS using LIVE NEWS.
         LIVE NEWS FEED: 
         {data_dump}
         
         OUTPUT FORMAT (Markdown):
-        **💵 DXY (DOLLAR INDEX)**
-        (Analyze USD sentiment based on the news feed.)
+        **💵 US DOLLAR INDEX (DXY)**
+        (Analyze USD sentiment & Yield drivers from news.)
         ---
-        ### 🇪🇺 EUR/USD & 🇬🇧 GBP/USD
-        (Synthesize news for Europe/UK.)
+        ### 🇪🇺 EUR/USD
+        (Bias | Key Driver)
+        ### 🇬🇧 GBP/USD
+        (Bias | Key Driver)
         ### 🇯🇵 USD/JPY
-        (Synthesize news for Japan/Yen.)
-        ### 🌐 COMMODITY CURRENCIES (AUD/CAD)
-        (Synthesize news for Commodity dollars.)
+        (Bias | Key Driver)
+        ### 🇨🇭 USD/CHF
+        (Bias | Safe Haven flows)
+        ### 🇦🇺 AUD/USD
+        (Bias | Commodity/China link)
+        ### 🇨🇦 USD/CAD
+        (Bias | Oil correlation)
+        ### 🇳🇿 NZD/USD
+        (Bias | Risk sentiment)
         """
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{active_model}:generateContent?key={clean_key}"
@@ -321,8 +329,8 @@ def generate_report(data_dump, mode, api_key):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("Update v15.33 (Dependency-Free)")
+    st.title("💠 Callums Terminals")
+    st.caption("Update v15.34 (Full FX Desk)")
     st.markdown("---")
     
     api_key = None
@@ -425,7 +433,8 @@ with tab2:
         if st.button("GENERATE MACRO BRIEFING", type="primary"):
             raw_news = ""
             with st.spinner("Streaming Google News Feed..."):
-                raw_news += get_rss_news("USD EUR GBP JPY Forex")
+                # Updated query to catch news on all majors
+                raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex")
             
             st.info("⏳ Analyzing Live Headlines...")
             report = generate_report(raw_news, "FX", api_key)
