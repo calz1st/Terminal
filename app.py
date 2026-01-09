@@ -10,7 +10,7 @@ import datetime
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="Callums Terminal",
+    page_title="Terminal",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
