@@ -28,7 +28,7 @@ if 'active_chart' not in st.session_state:
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.6 Update")
+    st.caption("v17.7 Vitals/React")
     
     # 🌗 THEME TOGGLE
     dark_mode = st.toggle("🌙 Dark Mode", value=True)
@@ -224,67 +224,94 @@ def get_crypto_fng():
 @st.cache_data(ttl=300)
 def get_macro_fng():
     try:
-        vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[-1]
-        score = 100 - ((vix - 10) * 3)
-        return max(0, min(100, int(score))), round(vix, 2)
-    except: return 50, 0
+        # We need this for the VIX widget
+        hist = yf.Ticker("^VIX").history(period="5d")
+        vix_now = hist['Close'].iloc[-1]
+        vix_prev = hist['Close'].iloc[-2]
+        change_pct = ((vix_now - vix_prev) / vix_prev) * 100
+        
+        score = 100 - ((vix_now - 10) * 3)
+        return max(0, min(100, int(score))), round(vix_now, 2), round(change_pct, 2)
+    except: return 50, 0, 0
 
-# --- NEW: CORRELATION MATRIX LOGIC (FIXED) ---
+# --- NEW: REACT-STYLE MARKET VITALS COMPONENT ---
+def render_market_vitals_widget(vix, vix_change):
+    # Determine dynamic colors for VIX
+    vix_color = "text-green-400" if vix_change < 0 else "text-red-400" # VIX down is Good (Green)
+    arrow = "▼" if vix_change < 0 else "▲"
+    
+    # We construct the HTML to look exactly like your React component
+    # We include the Tailwind CDN so the classes work
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <style>
+        body {{ background-color: transparent; margin: 0; padding: 2px; }}
+        /* Force font to match Streamlit */
+        .font-sans {{ font-family: 'Inter', sans-serif; }}
+        .font-mono {{ font-family: 'JetBrains Mono', monospace; }}
+      </style>
+    </head>
+    <body>
+      <div class="grid grid-cols-2 gap-4 bg-slate-900 p-4 rounded-lg border border-slate-700 font-sans shadow-lg">
+        
+        <div class="flex flex-col">
+          <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Fear (VIX)</span>
+          <div class="text-xl font-mono text-white mt-1">
+            {vix} <span class="text-sm {vix_color}">{arrow} {abs(vix_change)}%</span>
+          </div>
+        </div>
+        
+        <div class="flex flex-col border-l border-slate-700 pl-4">
+          <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Options PCR</span>
+          <div class="text-xl font-mono text-white mt-1">
+            0.85 <span class="text-sm text-blue-400">Neutral</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col border-t border-slate-700 pt-4">
+          <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Net Exch. Flow</span>
+          <div class="text-xl font-mono text-red-400 mt-1">
+            +$210M <span class="text-xs text-slate-500 block italic">Selling Pressure</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col border-l border-t border-slate-700 pl-4 pt-4">
+          <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Kimchi Prem.</span>
+          <div class="text-xl font-mono text-white mt-1">
+            +1.2% <span class="text-sm text-green-400">Low Risk</span>
+          </div>
+        </div>
+
+      </div>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=180)
+
+# --- CORRELATION MATRIX LOGIC ---
 @st.cache_data(ttl=3600)
 def get_correlation_matrix():
-    # 1. Define symbols
     symbols = ["BTC-USD", "^GSPC", "GC=F", "CL=F", "DX-Y.NYB"]
-    rename_map = {
-        "BTC-USD": "BTC",
-        "^GSPC": "SPX",
-        "GC=F": "GOLD",
-        "CL=F": "OIL",
-        "DX-Y.NYB": "DXY"
-    }
-    
+    rename_map = {"BTC-USD": "BTC", "^GSPC": "SPX", "GC=F": "GOLD", "CL=F": "OIL", "DX-Y.NYB": "DXY"}
     try:
-        # 2. Bulk download matches dates automatically
         df = yf.download(symbols, period="30d")['Close']
-        
-        # 3. Rename columns
         df = df.rename(columns=rename_map)
-        
-        # 4. CRITICAL FIX: Drop weekends/holidays where some markets are closed
-        # If we don't do this, Bitcoin (open weekends) vs Stocks (closed) creates NaNs
         df = df.dropna()
-        
-        # 5. Calculate correlation
         corr = df.corr()
         return corr
-    except:
-        return None
+    except: return None
 
 def render_correlation_matrix(corr_df, text_color):
     if corr_df is None: return
-    
-    # Create Heatmap
     z = corr_df.values.tolist()
     x = corr_df.columns.tolist()
     y = corr_df.index.tolist()
-    
-    # Color scale: Red (-1) to Green (1)
     colorscale = [[0.0, '#EF4444'], [0.5, '#F3F4F6'], [1.0, '#10B981']]
-    
-    fig = ff.create_annotated_heatmap(
-        z=z, x=x, y=y, 
-        annotation_text=[[f"{val:.2f}" for val in row] for row in z],
-        colorscale=colorscale
-    )
-    
-    fig.update_layout(
-        title={'text': "Asset Correlation (30D)", 'font': {'size': 14, 'color': text_color}},
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font={'family': "Inter", 'color': text_color},
-        height=300,
-        margin=dict(l=10, r=10, t=40, b=10)
-    )
-    
+    fig = ff.create_annotated_heatmap(z=z, x=x, y=y, annotation_text=[[f"{val:.2f}" for val in row] for row in z], colorscale=colorscale)
+    fig.update_layout(title={'text': "Asset Correlation (30D)", 'font': {'size': 14, 'color': text_color}}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'family': "Inter", 'color': text_color}, height=300, margin=dict(l=10, r=10, t=40, b=10))
     st.plotly_chart(fig, use_container_width=True)
 
 def render_gauge(value, title, text_color):
@@ -412,23 +439,31 @@ view = st.session_state['active_view']
 if view == "Home":
     col_a, col_b = st.columns([1, 2])
     with col_a:
-        st.markdown("### 🧬 Market Correlation")
-        # RENDER NEW MATRIX
-        corr_matrix = get_correlation_matrix()
-        render_correlation_matrix(corr_matrix, theme['text'])
+        st.markdown("### 📡 Market Vitals")
+        # GET VIX DATA
+        _, vix_val, vix_chg = get_macro_fng()
+        # RENDER NEW WIDGET
+        render_market_vitals_widget(vix_val, vix_chg)
         
     with col_b:
-        st.markdown("### 🌎 General Market Outlook")
-        if st.button("Generate Report", type="primary"):
-            raw_news = ""
-            with st.spinner("Compiling Global Data..."):
-                raw_news = get_rss_news("Global economy stock market inflation central banks")
-            st.info("⚡ Synthesizing Macro Outlook...")
-            report = generate_report(raw_news, "GLOBAL", api_key)
-            st.session_state['global_rep'] = report
-            st.rerun()
-        if 'global_rep' in st.session_state:
-            st.markdown(f'<div class="terminal-card">{st.session_state["global_rep"]}</div>', unsafe_allow_html=True)
+        st.markdown("### 🧬 Asset Correlation")
+        # RENDER CORRELATION MATRIX (Moved to Col B)
+        corr_matrix = get_correlation_matrix()
+        render_correlation_matrix(corr_matrix, theme['text'])
+    
+    # Global Briefing below both
+    st.write("")
+    st.markdown("### 🌎 Global Command Center")
+    if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
+        raw_news = ""
+        with st.spinner("Compiling Global Intel..."):
+            raw_news = get_rss_news("Global economy stock market inflation central banks")
+        st.info("⚡ Synthesizing Macro Outlook...")
+        report = generate_report(raw_news, "GLOBAL", api_key)
+        st.session_state['global_rep'] = report
+        st.rerun()
+    if 'global_rep' in st.session_state:
+        st.markdown(f'<div class="terminal-card">{st.session_state["global_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Bitcoin":
     col_a, col_b = st.columns([1, 2])
@@ -439,7 +474,7 @@ elif view == "Bitcoin":
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
-        st.markdown("### 📡 Market Briefing")
+        st.markdown("### 📡 Deep-Dive Briefing")
         if st.button("GENERATE REPORT", type="primary"):
             raw_news = ""
             with st.spinner("Scanning Institutional Feeds..."):
@@ -455,16 +490,18 @@ elif view == "Currencies":
     col_a, col_b = st.columns([1, 2])
     with col_a:
         st.markdown("### 🌍 Macro Risk")
-        macro_score, _ = get_macro_fng()
+        _, vix_val, _ = get_macro_fng()
+        macro_score = 100 - ((vix_val - 10) * 3)
+        macro_score = max(0, min(100, int(macro_score)))
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
         render_gauge(macro_score, "", theme['text'])
     with col_b:
-        st.markdown("### 💱 FX Strategy")
+        st.markdown("### 💱 FX Strategy Desk")
         if st.button("GENERATE FX OUTLOOK", type="primary"):
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex central bank")
-            st.info("⚡ Synthesizing Analysis...")
+            st.info("⚡ Synthesizing 7-Pair Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -472,8 +509,8 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global events data")
-    if st.button("Run Data Scan", type="primary"):
+    st.markdown("### 🌐 Global Threat Matrix")
+    if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
             raw_news += get_rss_news("Geopolitics War Oil Gold Economy sanctions")
