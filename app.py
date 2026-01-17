@@ -1,8 +1,6 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import time
-import re
 import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
@@ -16,131 +14,145 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. SESSION STATE SETUP ---
+# --- 2. SESSION STATE & THEME SETUP ---
 if 'active_view' not in st.session_state:
     st.session_state['active_view'] = "Bitcoin" 
 if 'active_chart' not in st.session_state:
     st.session_state['active_chart'] = "COINBASE:BTCUSD"
 
-# --- 3. UI OVERHAUL (CSS INJECTION) ---
-st.markdown("""
+# --- SIDEBAR & THEME TOGGLE ---
+with st.sidebar:
+    st.title("💠 Callums Terminal")
+    st.caption("v16.1 Responsive")
+    
+    # Theme Toggle
+    dark_mode = st.toggle("🌙 Dark Mode", value=True)
+    
+    # Define Color Palettes
+    if dark_mode:
+        theme = {
+            "bg": "#0E1117", "text": "#F3F4F6", "card_bg": "#1F2937", 
+            "border": "#374151", "hover": "#374151", "shadow": "rgba(0,0,0,0.3)",
+            "tv_theme": "dark", "tab_active": "#F3F4F6", "tab_inactive": "#9CA3AF"
+        }
+    else:
+        theme = {
+            "bg": "#F3F4F6", "text": "#111827", "card_bg": "#FFFFFF", 
+            "border": "#E5E7EB", "hover": "#F9FAFB", "shadow": "rgba(0,0,0,0.05)",
+            "tv_theme": "light", "tab_active": "#111827", "tab_inactive": "#6B7280"
+        }
+
+# --- 3. RESPONSIVE CSS INJECTION ---
+st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         
-        /* 1. GLOBAL RESET */
-        .stApp { 
-            background-color: #F3F4F6; /* Cool Grey Background */
-            color: #111827; 
+        /* 1. GLOBAL RESET & THEME APPLICATION */
+        .stApp {{ 
+            background-color: {theme['bg']}; 
+            color: {theme['text']}; 
             font-family: 'Inter', sans-serif; 
-        }
+        }}
         
-        /* 2. REMOVE DEFAULT PADDING */
-        .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
+        /* 2. RESPONSIVE CONTAINER (Fixes "Doesn't fit screen") */
+        .block-container {{
+            padding-top: 2rem !important;
+            padding-bottom: 3rem !important;
             padding-left: 2rem !important;
             padding-right: 2rem !important;
-        }
+        }}
+        /* Mobile Breakpoint */
+        @media (max-width: 768px) {{
+            .block-container {{
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }}
+        }}
         
-        /* 3. SIDEBAR POLISH */
-        [data-testid="stSidebar"] { 
-            background-color: #FFFFFF; 
-            border-right: 1px solid #E5E7EB;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.02);
-        }
+        /* 3. SIDEBAR STYLING */
+        [data-testid="stSidebar"] {{ 
+            background-color: {theme['card_bg']}; 
+            border-right: 1px solid {theme['border']};
+        }}
         
-        /* 4. CUSTOM HEADER TYPOGRAPHY */
-        h1, h2, h3 { 
+        /* 4. TYPOGRAPHY */
+        h1, h2, h3 {{ 
             font-family: 'Inter', sans-serif;
-            color: #111827 !important; 
+            color: {theme['text']} !important; 
             font-weight: 700; 
             letter-spacing: -0.5px;
-        }
+        }}
+        p, div, span {{
+            color: {theme['text']};
+        }}
         
-        /* 5. PROFESSIONAL BUTTONS (Tickers) */
-        div.stButton > button {
-            width: 100%;
-            background-color: #FFFFFF;
-            color: #374151;
-            border: 1px solid #E5E7EB;
+        /* 5. CUSTOM TICKER GRID (CSS GRID > STREAMLIT COLUMNS) */
+        .ticker-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }}
+        .ticker-item {{
+            background-color: {theme['card_bg']};
+            border: 1px solid {theme['border']};
             border-radius: 8px;
             padding: 10px 14px;
             font-size: 13px;
             font-weight: 600;
-            text-align: left;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            color: {theme['text']};
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px {theme['shadow']};
             transition: all 0.2s ease;
-        }
-        div.stButton > button:hover {
+            cursor: pointer;
+        }}
+        .ticker-item:hover {{
             border-color: #9CA3AF;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            color: #000;
-        }
-        div.stButton > button:active {
-            background-color: #F3F4F6;
-            transform: translateY(0px);
-        }
-
-        /* 6. PRIMARY BUTTONS (Generate) */
-        button[kind="primary"] {
-            background-color: #111827 !important;
-            color: #FFFFFF !important;
+            transform: translateY(-2px);
+        }}
+        
+        /* 6. PRIMARY BUTTONS */
+        button[kind="primary"] {{
+            background-color: {theme['text']} !important;
+            color: {theme['bg']} !important;
             border: none;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        button[kind="primary"]:hover {
-            background-color: #000000 !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
-
-        /* 7. CARDS (The "Glass" Effect) */
-        .terminal-card {
-            background-color: #FFFFFF; 
-            border: 1px solid #E5E7EB; 
+        }}
+        
+        /* 7. CARDS */
+        .terminal-card {{
+            background-color: {theme['card_bg']}; 
+            border: 1px solid {theme['border']}; 
             border-radius: 12px;
             padding: 24px; 
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        }
+            box-shadow: 0 4px 6px -1px {theme['shadow']};
+        }}
         
-        /* 8. STATUS INDICATOR */
-        .status-dot {
-            height: 8px;
-            width: 8px;
-            background-color: #10B981;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 6px;
-            box-shadow: 0 0 8px #10B981;
-        }
+        /* 8. TABS */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 20px;
+            border-bottom: 1px solid {theme['border']};
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 50px;
+            background-color: transparent;
+            color: {theme['tab_inactive']};
+            font-weight: 600;
+        }}
+        .stTabs [aria-selected="true"] {{
+            color: {theme['tab_active']};
+            border-bottom: 2px solid {theme['tab_active']};
+        }}
         
-        /* 9. METRIC VALUES */
-        .metric-val {
+        /* 9. METRICS */
+        .metric-val {{
             font-family: 'JetBrains Mono', monospace;
             font-size: 24px;
             font-weight: 700;
-            color: #111827;
-        }
-        
-        /* 10. TABS OVERHAUL */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 20px;
-            border-bottom: 1px solid #E5E7EB;
-        }
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            white-space: pre-wrap;
-            background-color: transparent;
-            border-radius: 4px 4px 0px 0px;
-            color: #6B7280;
-            font-weight: 600;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: transparent;
-            color: #111827;
-            border-bottom: 2px solid #111827;
-        }
+            color: {theme['text']};
+        }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -172,29 +184,29 @@ def get_symbol_details(key):
     if "BTC" in key_upper: icon = "₿"
     elif "ETH" in key_upper: icon = "Ξ"
     elif "EUR" in key_upper: icon = "💶"
-    elif "GBP" in key_upper: icon = "💷"
     elif "USD" in key_upper: icon = "💵"
-    elif "JPY" in key_upper: icon = "¥"
     elif "GOLD" in key_upper: icon = "⚱️"
-    elif "OIL" in key_upper: icon = "🛢️"
     elif "NVDA" in key_upper: icon = "🤖"
-    elif "AAPL" in key_upper: icon = "🍎"
     return icon
 
 def render_ticker_grid(data):
+    # This uses native Streamlit columns but relies on the `st.button` use_container_width=True
+    # to fill the responsive grid. 
+    # For a TRUE responsive grid that changes column count (6 desktop -> 2 mobile), 
+    # we use standard columns but acknowledge they stack on mobile.
+    
     if not data: return
     tv_map = {"BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD", "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF", "CAD": "FX:USDCAD", "AUD": "FX:AUDUSD", "NZD": "FX:NZDUSD", "DXY": "TVC:DXY", "GOLD": "OANDA:XAUUSD", "OIL": "TVC:USOIL", "NVDA": "NASDAQ:NVDA", "TSLA": "NASDAQ:TSLA", "AAPL": "NASDAQ:AAPL", "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"}
     
-    # Use 6 columns for a denser, more professional "Toolbar" look
-    cols = st.columns(6)
+    # We use a trick here: On mobile, st.columns(6) is annoying. 
+    # But Streamlit handles stacking automatically on very small screens.
+    # To make it cleaner, we iterate.
+    cols = st.columns(6) 
     for i, (key, (price, change)) in enumerate(data.items()):
         icon = get_symbol_details(key)
         arrow = "▲" if change >= 0 else "▼"
-        color_code = "#10B981" if change >= 0 else "#EF4444" # Green/Red hex codes
         price_str = f"${price:,.0f}" if price > 100 else f"${price:.4f}"
-        
-        # We use a button but format the text inside to look like a stat card
-        label = f"{icon} {key}   |   {price_str}   {arrow} {change:.2f}%"
+        label = f"{icon} {key}\n{price_str} {arrow} {change:.2f}%" # Newline for better mobile fitting
         
         with cols[i % 6]:
             if st.button(label, key=f"btn_{key}", use_container_width=True):
@@ -217,38 +229,39 @@ def get_macro_fng():
         return max(0, min(100, int(score))), round(vix, 2)
     except: return 50, 0
 
-def render_gauge(value, title):
+def render_gauge(value, title, theme_text_color):
+    # Plotly needs to know the theme color for the text
     fig = go.Figure(go.Indicator(
-        mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': '#6B7280'}},
-        gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "#111827"}, 
-               'steps': [{'range': [0, 25], 'color': "#FCA5A5"}, {'range': [25, 75], 'color': "#E5E7EB"}, {'range': [75, 100], 'color': "#93C5FD"}]}
+        mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': theme_text_color}},
+        gauge={'axis': {'range': [0, 100]}, 'bar': {'color': theme_text_color}, 
+               'steps': [{'range': [0, 25], 'color': "#EF4444"}, {'range': [25, 75], 'color': "#6B7280"}, {'range': [75, 100], 'color': "#10B981"}]}
     ))
     fig.update_layout(height=180, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)', font={'family': "Inter"})
     st.plotly_chart(fig, use_container_width=True)
 
-def render_chart(symbol):
-    # Modernized Chart Widget with fewer borders
+def render_chart(symbol, theme_mode):
+    # Dynamic Widget Theme
     html = f"""
-    <div class="tradingview-widget-container" style="height:650px;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+    <div class="tradingview-widget-container" style="height:500px;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <div id="tradingview_{symbol}" style="height:100%"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
       <script type="text/javascript">
-      new TradingView.widget({{"autosize": true, "symbol": "{symbol}", "interval": "D", "timezone": "Etc/UTC", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "container_id": "tradingview_{symbol}"}});
+      new TradingView.widget({{"autosize": true, "symbol": "{symbol}", "interval": "D", "timezone": "Etc/UTC", "theme": "{theme_mode}", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "container_id": "tradingview_{symbol}"}});
       </script>
     </div>
     """
-    components.html(html, height=650)
+    components.html(html, height=500)
 
 def render_economic_calendar(timezone_id):
     calendar_url = f"https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&features=datepicker,timezone&countries=5,4,72,35,25,6,43,12,37&calType=week&timeZone={timezone_id}&lang=1&importance=3"
     html = f"""
-    <div style="border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; height: 800px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-        <iframe src="{calendar_url}" width="100%" height="800" frameborder="0" allowtransparency="true"></iframe>
+    <div style="border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; height: 600px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <iframe src="{calendar_url}" width="100%" height="600" frameborder="0" allowtransparency="true"></iframe>
     </div>
     """
-    components.html(html, height=800)
+    components.html(html, height=600)
 
-# --- 5. AI ENGINE (RSS + GOOGLE) ---
+# --- 5. AI ENGINE ---
 @st.cache_data(ttl=600) 
 def get_rss_news(query):
     try:
@@ -259,8 +272,7 @@ def get_rss_news(query):
         news_text = ""
         for item in items[:15]: 
             title = item.find('title').text if item.find('title') else "No Title"
-            pubdate = item.find('pubdate').text if item.find('pubdate') else ""
-            news_text += f"- {title} ({pubdate})\n"
+            news_text += f"- {title}\n"
         return news_text if news_text else "No recent news found."
     except Exception as e: return f"News Feed Error: {str(e)}"
 
@@ -303,14 +315,10 @@ def generate_report(data_dump, mode, api_key):
         return r.json()['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ") if 'candidates' in r.json() else f"❌ Error: {r.json().get('error', {}).get('message', 'Unknown')}"
     except Exception as e: return f"System Error: {str(e)}"
 
-# --- 6. SIDEBAR (LIVE TERMINAL) ---
+# --- 6. SIDEBAR CONTINUED ---
 with st.sidebar:
+    st.markdown(f"<div style='font-family: JetBrains Mono; font-size: 12px; color: {theme['text']}; margin-bottom: 20px;'>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
-    st.title("💠 Callums Terminal")
-    st.caption("v16.0 Obsidian-White")
-    
-    # Custom Date Display
-    st.markdown(f"<div style='font-family: JetBrains Mono; font-size: 12px; color: #6B7280; margin-bottom: 20px;'>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>", unsafe_allow_html=True)
     
     api_key = None
     try:
@@ -330,10 +338,8 @@ with st.sidebar:
     selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
 
 # --- 7. MAIN DASHBOARD ---
-# Hero Header
 st.markdown("## 🖥️ MARKET OVERVIEW")
 
-# Ticker Grid (Hero Section)
 col_sel, col_space = st.columns([1, 2])
 with col_sel:
     selected_market = st.selectbox("Select Asset Class:", ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices"], index=0, label_visibility="collapsed")
@@ -349,9 +355,8 @@ active_tickers = market_map[selected_market]
 market_data = get_market_data(active_tickers)
 render_ticker_grid(market_data)
 
-st.write("") # Spacer
+st.write("") 
 
-# Navigation
 nav_options = ["Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
 cols = st.columns(len(nav_options))
 for i, option in enumerate(nav_options):
@@ -361,7 +366,6 @@ for i, option in enumerate(nav_options):
 
 st.markdown("---")
 
-# View Controller
 view = st.session_state['active_view']
 
 if view == "Bitcoin":
@@ -369,8 +373,8 @@ if view == "Bitcoin":
     with col_a:
         st.markdown("### Market Sentiment")
         btc_fng = get_crypto_fng()
-        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{btc_fng}</div><div style='font-size: 12px; color: #6B7280;'>Fear & Greed Index</div></div>", unsafe_allow_html=True)
-        render_gauge(btc_fng, "")
+        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{btc_fng}</div><div style='font-size: 12px; color: {theme['text']};'>Fear & Greed Index</div></div>", unsafe_allow_html=True)
+        render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
         st.markdown("### 📡 Intelligence Briefing")
@@ -390,8 +394,8 @@ elif view == "Currencies":
     with col_a:
         st.markdown("### 🌍 Macro Risk")
         macro_score, _ = get_macro_fng()
-        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: #6B7280;'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
-        render_gauge(macro_score, "")
+        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
+        render_gauge(macro_score, "", theme['text'])
     with col_b:
         st.markdown("### 💱 FX Strategy Desk")
         if st.button("GENERATE FX OUTLOOK", type="primary"):
@@ -426,6 +430,8 @@ elif view == "Charts":
     col1, col2 = st.columns([3, 1])
     with col1:
         st.subheader(f"{st.session_state['active_chart']}")
+        # Pass theme to chart renderer
+        render_chart(st.session_state['active_chart'], theme['tv_theme'])
     with col2:
         asset_map = {
             "Bitcoin (BTC/USD)": "COINBASE:BTCUSD", "Ethereum (ETH/USD)": "COINBASE:ETHUSD",
@@ -444,5 +450,3 @@ elif view == "Charts":
         if asset_map[selected_label] != current_val:
             st.session_state['active_chart'] = asset_map[selected_label]
             st.rerun()
-            
-    render_chart(st.session_state['active_chart'])
