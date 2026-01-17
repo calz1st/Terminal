@@ -28,7 +28,7 @@ if 'active_chart' not in st.session_state:
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.6 Matrix Fix")
+    st.caption("v17.6 Update")
     
     # 🌗 THEME TOGGLE
     dark_mode = st.toggle("🌙 Dark Mode", value=True)
