@@ -58,69 +58,88 @@ def set_theme():
 
 theme = set_theme()
 
-# --- 4. CSS INJECTION ---
+# --- 4. CSS INJECTION (The "Engine") ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         
-        /* Global Reset */
-        .stApp {{ background-color: {theme['bg']}; color: {theme['text']}; font-family: 'Inter', sans-serif; }}
-        
-        /* Mobile-Friendly Container */
-        .block-container {{
-            padding-top: 1rem !important;
-            padding-bottom: 3rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
+        /* 1. GLOBAL COLORS (With !important to force override) */
+        .stApp {{ 
+            background-color: {theme['bg']} !important; 
+            color: {theme['text']} !important; 
+            font-family: 'Inter', sans-serif; 
         }}
-        @media (min-width: 768px) {{
+        
+        /* 2. SIDEBAR SPECIFICS */
+        [data-testid="stSidebar"] {{ 
+            background-color: {theme['card_bg']} !important; 
+            border-right: 1px solid {theme['border']} !important;
+        }}
+        /* Force text colors on sidebar elements */
+        [data-testid="stSidebar"] p, 
+        [data-testid="stSidebar"] span, 
+        [data-testid="stSidebar"] label, 
+        [data-testid="stSidebar"] div {{
+            color: {theme['text']} !important;
+        }}
+        
+        /* 3. RESPONSIVE PADDING */
+        .block-container {{
+            padding-top: 2rem !important;
+            padding-bottom: 3rem !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }}
+        @media (max-width: 768px) {{
             .block-container {{
-                padding-left: 2rem !important;
-                padding-right: 2rem !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
             }}
         }}
 
-        /* Sidebar Styling */
-        [data-testid="stSidebar"] {{ 
-            background-color: {theme['card_bg']}; 
-            border-right: 1px solid {theme['border']};
+        /* 4. TYPOGRAPHY */
+        h1, h2, h3 {{ 
+            font-family: 'Inter', sans-serif;
+            color: {theme['text']} !important; 
+            font-weight: 700; 
+            letter-spacing: -0.5px;
         }}
-        [data-testid="stSidebar"] * {{
-            color: {theme['text']} !important;
-        }}
-
-        /* Typography */
-        h1, h2, h3, p, span, div {{ color: {theme['text']}; }}
+        p, div {{ color: {theme['text']}; }}
         
-        /* Buttons */
-        div.stButton > button {{
-            background-color: {theme['card_bg']};
-            color: {theme['text']};
-            border: 1px solid {theme['border']};
-            border-radius: 8px;
+        /* 5. CARDS & BUTTONS */
+        .terminal-card {{
+            background-color: {theme['card_bg']} !important; 
+            border: 1px solid {theme['border']} !important; 
+            border-radius: 12px;
+            padding: 24px; 
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px {theme['shadow']} !important;
         }}
+        
+        /* Primary Button */
         button[kind="primary"] {{
             background-color: {theme['text']} !important;
             color: {theme['bg']} !important;
             border: none;
         }}
-
-        /* Cards */
-        .terminal-card {{
-            background-color: {theme['card_bg']}; 
-            border: 1px solid {theme['border']}; 
-            border-radius: 12px;
-            padding: 20px; 
-            margin-bottom: 15px;
-            box-shadow: 0 4px 6px -1px {theme['shadow']};
+        /* Secondary Button (Tickers) */
+        div.stButton > button {{
+            background-color: {theme['card_bg']} !important;
+            color: {theme['text']} !important;
+            border: 1px solid {theme['border']} !important;
         }}
         
-        /* Metrics */
+        /* 6. TABS */
+        .stTabs [data-baseweb="tab-list"] {{ border-bottom: 1px solid {theme['border']} !important; }}
+        .stTabs [data-baseweb="tab"] {{ color: {theme['tab_inactive']} !important; }}
+        .stTabs [aria-selected="true"] {{ color: {theme['tab_active']} !important; border-bottom: 2px solid {theme['tab_active']} !important; }}
+        
+        /* 7. METRICS */
         .metric-val {{
             font-family: 'JetBrains Mono', monospace;
             font-size: 24px;
             font-weight: 700;
-            color: {theme['text']};
+            color: {theme['text']} !important;
         }}
     </style>
 """, unsafe_allow_html=True)
