@@ -6,7 +6,9 @@ import re
 import yfinance as yf
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
 import datetime
+import pandas as pd
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -17,7 +19,6 @@ st.set_page_config(
 )
 
 # --- 2. SESSION STATE SETUP ---
-# UPDATED: Default view is now "Home"
 if 'active_view' not in st.session_state:
     st.session_state['active_view'] = "Home" 
 if 'active_chart' not in st.session_state:
@@ -27,7 +28,7 @@ if 'active_chart' not in st.session_state:
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.2 Home/Command")
+    st.caption("v17.4 Matrix/Home")
     
     # 🌗 THEME TOGGLE
     dark_mode = st.checkbox("🌙 Dark Mode", value=True)
@@ -228,6 +229,59 @@ def get_macro_fng():
         return max(0, min(100, int(score))), round(vix, 2)
     except: return 50, 0
 
+# --- NEW: CORRELATION MATRIX LOGIC ---
+@st.cache_data(ttl=3600)
+def get_correlation_matrix():
+    # We fetch 30 days of data for key assets
+    tickers = {
+        "BTC": "BTC-USD",
+        "SPX": "^GSPC",
+        "GOLD": "GC=F",
+        "OIL": "CL=F",
+        "DXY": "DX-Y.NYB"
+    }
+    
+    try:
+        # Fetch data
+        df = pd.DataFrame()
+        for name, symbol in tickers.items():
+            hist = yf.Ticker(symbol).history(period="30d")['Close']
+            df[name] = hist
+        
+        # Calculate Correlation
+        corr = df.corr()
+        return corr
+    except:
+        return None
+
+def render_correlation_matrix(corr_df, text_color):
+    if corr_df is None: return
+    
+    # Create Heatmap
+    z = corr_df.values.tolist()
+    x = corr_df.columns.tolist()
+    y = corr_df.index.tolist()
+    
+    # Color scale: Red (-1) to Green (1)
+    colorscale = [[0.0, '#EF4444'], [0.5, '#F3F4F6'], [1.0, '#10B981']]
+    
+    fig = ff.create_annotated_heatmap(
+        z=z, x=x, y=y, 
+        annotation_text=[[f"{val:.2f}" for val in row] for row in z],
+        colorscale=colorscale
+    )
+    
+    fig.update_layout(
+        title={'text': "Asset Correlation (30D)", 'font': {'size': 14, 'color': text_color}},
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font={'family': "Inter", 'color': text_color},
+        height=300,
+        margin=dict(l=10, r=10, t=40, b=10)
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
 def render_gauge(value, title, text_color):
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': text_color}},
@@ -337,7 +391,7 @@ render_ticker_grid(market_data)
 
 st.write("") 
 
-# Navigation (UPDATED WITH HOME)
+# Navigation
 nav_options = ["Home", "Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
 cols = st.columns(len(nav_options))
 for i, option in enumerate(nav_options):
@@ -353,15 +407,16 @@ view = st.session_state['active_view']
 if view == "Home":
     col_a, col_b = st.columns([1, 2])
     with col_a:
-        st.markdown("### Global Risk Context")
-        macro_score, _ = get_macro_fng()
-        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Macro Risk Score</div></div>", unsafe_allow_html=True)
-        render_gauge(macro_score, "", theme['text'])
+        st.markdown("### 🧬 Market Correlation")
+        # RENDER NEW MATRIX
+        corr_matrix = get_correlation_matrix()
+        render_correlation_matrix(corr_matrix, theme['text'])
+        
     with col_b:
-        st.markdown("### 🌎 General Market Outlook")
+        st.markdown("### 🌎 Global Command Center")
         if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
             raw_news = ""
-            with st.spinner("Compiling Intel..."):
+            with st.spinner("Compiling Global Intel..."):
                 raw_news = get_rss_news("Global economy stock market inflation central banks")
             st.info("⚡ Synthesizing Macro Outlook...")
             report = generate_report(raw_news, "GLOBAL", api_key)
