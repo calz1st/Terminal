@@ -17,8 +17,9 @@ st.set_page_config(
 )
 
 # --- 2. SESSION STATE SETUP ---
+# UPDATED: Default view is now "Home"
 if 'active_view' not in st.session_state:
-    st.session_state['active_view'] = "Bitcoin" 
+    st.session_state['active_view'] = "Home" 
 if 'active_chart' not in st.session_state:
     st.session_state['active_chart'] = "COINBASE:BTCUSD"
 
@@ -26,10 +27,9 @@ if 'active_chart' not in st.session_state:
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.0 Mobile/Dark")
+    st.caption("v17.2 Home/Command")
     
     # 🌗 THEME TOGGLE
-    # We use a checkbox because it is compatible with ALL Streamlit versions
     dark_mode = st.checkbox("🌙 Dark Mode", value=True)
 
     # 🎨 THEME DEFINITIONS
@@ -40,7 +40,7 @@ with st.sidebar:
             "sidebar": "#262730",
             "card": "#1F2937",
             "border": "#374151",
-            "tv_theme": "dark",  # For TradingView
+            "tv_theme": "dark",
         }
     else:
         theme = {
@@ -49,7 +49,7 @@ with st.sidebar:
             "sidebar": "#FFFFFF",
             "card": "#FFFFFF",
             "border": "#E5E7EB",
-            "tv_theme": "light", # For TradingView
+            "tv_theme": "light",
         }
     
     st.markdown("---")
@@ -77,7 +77,7 @@ st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         
-        /* 1. MASTER THEME OVERRIDES (Using !important to force changes) */
+        /* 1. MASTER THEME OVERRIDES */
         .stApp {{ 
             background-color: {theme['bg']} !important; 
             color: {theme['text']} !important; 
@@ -89,13 +89,12 @@ st.markdown(f"""
             border-right: 1px solid {theme['border']} !important;
         }}
         
-        /* Fix text colors in sidebar and main area */
-        h1, h2, h3, p, span, div, label {{
+        /* Fix text colors */
+        h1, h2, h3, p, span, div, label, li {{
             color: {theme['text']} !important;
         }}
         
         /* 2. RESPONSIVE CONTAINER */
-        /* Reduces padding on mobile devices so the UI fits the screen */
         .block-container {{
             padding-top: 2rem !important;
             padding-bottom: 3rem !important;
@@ -127,14 +126,13 @@ st.markdown(f"""
             transform: translateY(-1px);
         }}
         
-        /* Primary Action Buttons (Generate, etc) */
         button[kind="primary"] {{
             background-color: {theme['text']} !important;
             color: {theme['bg']} !important;
             border: none;
         }}
 
-        /* 4. CARDS (Glass Effect) */
+        /* 4. CARDS */
         .terminal-card {{
             background-color: {theme['card']} !important; 
             border: 1px solid {theme['border']} !important; 
@@ -143,7 +141,7 @@ st.markdown(f"""
             margin-bottom: 20px;
         }}
         
-        /* 5. METRICS & STATUS */
+        /* 5. METRICS */
         .status-dot {{
             height: 8px; width: 8px;
             background-color: #10B981;
@@ -202,14 +200,11 @@ def render_ticker_grid(data):
     if not data: return
     tv_map = {"BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD", "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF", "CAD": "FX:USDCAD", "AUD": "FX:AUDUSD", "NZD": "FX:NZDUSD", "DXY": "TVC:DXY", "GOLD": "OANDA:XAUUSD", "OIL": "TVC:USOIL", "NVDA": "NASDAQ:NVDA", "TSLA": "NASDAQ:TSLA", "AAPL": "NASDAQ:AAPL", "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"}
     
-    # Standard columns - these auto-stack on mobile in newer Streamlit versions
     cols = st.columns(6)
     for i, (key, (price, change)) in enumerate(data.items()):
         icon = get_symbol_details(key)
         arrow = "▲" if change >= 0 else "▼"
         price_str = f"${price:,.0f}" if price > 100 else f"${price:.4f}"
-        
-        # Newline used to make button taller and narrower for mobile friendliness
         label = f"{icon} {key}\n{price_str} {arrow} {change:.2f}%"
         
         with cols[i % 6]:
@@ -234,7 +229,6 @@ def get_macro_fng():
     except: return 50, 0
 
 def render_gauge(value, title, text_color):
-    # We pass text_color to make sure it is visible in dark/light mode
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': text_color}},
         gauge={'axis': {'range': [0, 100]}, 'bar': {'color': text_color}, 
@@ -244,7 +238,6 @@ def render_gauge(value, title, text_color):
     st.plotly_chart(fig, use_container_width=True)
 
 def render_chart(symbol, theme_mode):
-    # We pass 'theme_mode' ('dark' or 'light') to the widget
     html = f"""
     <div class="tradingview-widget-container" style="height:650px;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <div id="tradingview_{symbol}" style="height:100%"></div>
@@ -274,7 +267,7 @@ def get_rss_news(query):
         soup = BeautifulSoup(r.content, features="html.parser")
         items = soup.findAll('item')
         news_text = ""
-        for item in items[:15]: 
+        for item in items[:20]: 
             title = item.find('title').text if item.find('title') else "No Title"
             pubdate = item.find('pubdate').text if item.find('pubdate') else ""
             news_text += f"- {title} ({pubdate})\n"
@@ -303,14 +296,16 @@ def generate_report(data_dump, mode, api_key):
     
     headers = {'Content-Type': 'application/json'}
     safety_settings = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"}]
-    generation_config = {"maxOutputTokens": 2500}
+    generation_config = {"maxOutputTokens": 8192}
 
     if mode == "BTC":
-        prompt = f"""ROLE: Crypto Strategist. TASK: Bitcoin briefing. DATA: {data_dump}. OUTPUT: ### ⚡️ LIVE PULSE\n### 🏦 FLOWS\n### 🔮 SCENARIOS"""
+        prompt = f"""ROLE: Senior Crypto Strategist. TASK: Deep-dive Bitcoin report. DATA: {data_dump}. OUTPUT: ### ⚡️ LIVE PULSE\n### 🏦 FLOWS\n### 🔮 SCENARIOS"""
     elif mode == "GEO":
-        prompt = f"""ROLE: Risk Analyst. TASK: Global threats. DATA: {data_dump}. OUTPUT: ### 🌍 THREAT MATRIX\n### ⚔️ FLASHPOINTS\n### 🛡 MARKET IMPACT"""
+        prompt = f"""ROLE: Intelligence Analyst. TASK: Geopolitical Threat Assessment. DATA: {data_dump}. OUTPUT: ### 🌍 THREAT MATRIX\n### ⚔️ FLASHPOINTS\n### 🛡 MARKET IMPACT"""
+    elif mode == "GLOBAL":
+        prompt = f"""ROLE: Chief Investment Officer. TASK: Global Market Executive Summary. DATA: {data_dump}. OUTPUT: ### 🌎 MACRO OVERVIEW\n### 🚨 KEY RISKS\n### 💡 OPPORTUNITIES"""
     else: # FX
-        prompt = f"""ROLE: FX Strategist. TASK: Detailed Outlook for 7 Major Pairs. DATA: {data_dump}. OUTPUT: **💵 DXY**\n---\n### 🇪🇺 EUR/USD\n### 🇬🇧 GBP/USD\n### 🇯🇵 USD/JPY\n### 🇨🇭 USD/CHF\n### 🇦🇺 AUD/USD\n### 🇨🇦 USD/CAD\n### 🇳🇿 NZD/USD"""
+        prompt = f"""ROLE: FX Strategist. TASK: Weekly Outlook for 7 Major Pairs. DATA: {data_dump}. OUTPUT: **💵 DXY**\n---\n### 🇪🇺 EUR/USD\n### 🇬🇧 GBP/USD\n### 🇯🇵 USD/JPY\n### 🇨🇭 USD/CHF\n### 🇦🇺 AUD/USD\n### 🇨🇦 USD/CAD\n### 🇳🇿 NZD/USD"""
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{active_model}:generateContent?key={clean_key}"
     payload = {"contents": [{"parts": [{"text": prompt}]}], "safetySettings": safety_settings, "generationConfig": generation_config}
@@ -322,10 +317,9 @@ def generate_report(data_dump, mode, api_key):
 
 
 # --- 7. MAIN DASHBOARD ---
-# Hero Header
 st.markdown("## 🖥️ MARKET OVERVIEW")
 
-# Ticker Grid (Hero Section)
+# Ticker Grid
 col_sel, col_space = st.columns([1, 2])
 with col_sel:
     selected_market = st.selectbox("Select Asset Class:", ["Standard", "Crypto", "Forex", "Tech Stocks", "Indices"], index=0, label_visibility="collapsed")
@@ -341,10 +335,10 @@ active_tickers = market_map[selected_market]
 market_data = get_market_data(active_tickers)
 render_ticker_grid(market_data)
 
-st.write("") # Spacer
+st.write("") 
 
-# Navigation
-nav_options = ["Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
+# Navigation (UPDATED WITH HOME)
+nav_options = ["Home", "Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
 cols = st.columns(len(nav_options))
 for i, option in enumerate(nav_options):
     if cols[i].button(option, use_container_width=True, type="primary" if st.session_state['active_view'] == option else "secondary"):
@@ -356,7 +350,27 @@ st.markdown("---")
 # View Controller
 view = st.session_state['active_view']
 
-if view == "Bitcoin":
+if view == "Home":
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        st.markdown("### Global Risk Context")
+        macro_score, _ = get_macro_fng()
+        st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Macro Risk Score</div></div>", unsafe_allow_html=True)
+        render_gauge(macro_score, "", theme['text'])
+    with col_b:
+        st.markdown("### 🌎 Global Command Center")
+        if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
+            raw_news = ""
+            with st.spinner("Compiling Global Intel..."):
+                raw_news = get_rss_news("Global economy stock market inflation central banks")
+            st.info("⚡ Synthesizing Macro Outlook...")
+            report = generate_report(raw_news, "GLOBAL", api_key)
+            st.session_state['global_rep'] = report
+            st.rerun()
+        if 'global_rep' in st.session_state:
+            st.markdown(f'<div class="terminal-card">{st.session_state["global_rep"]}</div>', unsafe_allow_html=True)
+
+elif view == "Bitcoin":
     col_a, col_b = st.columns([1, 2])
     with col_a:
         st.markdown("### Market Sentiment")
@@ -365,11 +379,11 @@ if view == "Bitcoin":
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
-        st.markdown("### 📡 Market Briefing")
+        st.markdown("### 📡 Deep-Dive Briefing")
         if st.button("GENERATE REPORT", type="primary"):
             raw_news = ""
             with st.spinner("Scanning Institutional Feeds..."):
-                raw_news = get_rss_news("Bitcoin crypto market")
+                raw_news = get_rss_news("Bitcoin crypto market ETF on-chain")
             st.info("⚡ Analyzing Market Structure...")
             report = generate_report(raw_news, "BTC", api_key)
             st.session_state['btc_rep'] = report
@@ -389,8 +403,8 @@ elif view == "Currencies":
         if st.button("GENERATE FX OUTLOOK", type="primary"):
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
-                raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex")
-            st.info("⚡ Synthesizing Analysis...")
+                raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex central bank")
+            st.info("⚡ Synthesizing 7-Pair Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -398,11 +412,11 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global Outlook")
+    st.markdown("### 🌐 Global Threat Matrix")
     if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
-            raw_news += get_rss_news("Geopolitics War Oil Gold Economy")
+            raw_news += get_rss_news("Geopolitics War Oil Gold Economy sanctions")
         st.info("⚡ Assessing Strategic Risks...")
         report = generate_report(raw_news, "GEO", api_key)
         st.session_state['geo_rep'] = report
@@ -437,5 +451,4 @@ elif view == "Charts":
             st.session_state['active_chart'] = asset_map[selected_label]
             st.rerun()
             
-    # Render Chart with Theme Awareness
     render_chart(st.session_state['active_chart'], theme['tv_theme'])
