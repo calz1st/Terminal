@@ -418,10 +418,10 @@ if view == "Home":
         render_correlation_matrix(corr_matrix, theme['text'])
         
     with col_b:
-        st.markdown("### 🌎 Global Command Center")
-        if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
+        st.markdown("### 🌎 General Market Outlook")
+        if st.button("Generate Report", type="primary"):
             raw_news = ""
-            with st.spinner("Compiling Global Intel..."):
+            with st.spinner("Compiling Global Data..."):
                 raw_news = get_rss_news("Global economy stock market inflation central banks")
             st.info("⚡ Synthesizing Macro Outlook...")
             report = generate_report(raw_news, "GLOBAL", api_key)
@@ -439,7 +439,7 @@ elif view == "Bitcoin":
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
-        st.markdown("### 📡 Deep-Dive Briefing")
+        st.markdown("### 📡 Market Briefing")
         if st.button("GENERATE REPORT", type="primary"):
             raw_news = ""
             with st.spinner("Scanning Institutional Feeds..."):
@@ -459,12 +459,12 @@ elif view == "Currencies":
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
         render_gauge(macro_score, "", theme['text'])
     with col_b:
-        st.markdown("### 💱 FX Strategy Desk")
+        st.markdown("### 💱 FX Strategy")
         if st.button("GENERATE FX OUTLOOK", type="primary"):
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex central bank")
-            st.info("⚡ Synthesizing 7-Pair Analysis...")
+            st.info("⚡ Synthesizing Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -472,8 +472,8 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global Threat Matrix")
-    if st.button("RUN INTEL SCAN", type="primary"):
+    st.markdown("### 🌐 Global events data")
+    if st.button("Run Data Scan", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
             raw_news += get_rss_news("Geopolitics War Oil Gold Economy sanctions")
