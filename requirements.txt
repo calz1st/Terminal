@@ -1,7 +1,7 @@
 streamlit
-google-generativeai
-requests
-beautifulsoup4
 yfinance
 plotly
-
+beautifulsoup4
+requests
+pandas
+lxml
