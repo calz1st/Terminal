@@ -365,7 +365,7 @@ if view == "Bitcoin":
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
-        st.markdown("### 📡 Intelligence Briefing")
+        st.markdown("### 📡 Market Briefing")
         if st.button("GENERATE REPORT", type="primary"):
             raw_news = ""
             with st.spinner("Scanning Institutional Feeds..."):
@@ -390,7 +390,7 @@ elif view == "Currencies":
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex")
-            st.info("⚡ Synthesizing 7-Pair Analysis...")
+            st.info("⚡ Synthesizing Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -398,7 +398,7 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global Threat Matrix")
+    st.markdown("### 🌐 Global Outlook")
     if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
