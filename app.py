@@ -25,9 +25,8 @@ with st.sidebar:
     st.title("💠 Callums Terminal")
     st.caption("v16.1 Dark/Light")
     
-    # 🟢 THEME TOGGLE BUTTON
-    # This switch controls the entire visual stack
-    dark_mode = st.toggle("🌙 Dark Mode", value=True)
+    # 🟢 THEME TOGGLE (Using Checkbox for Compatibility)
+    dark_mode = st.checkbox("🌙 Dark Mode", value=True)
     
     # Define Color Palettes
     if dark_mode:
@@ -56,7 +55,6 @@ with st.sidebar:
         }
 
 # --- 3. DYNAMIC CSS INJECTION ---
-# We use f-strings (f"""...""") to insert the python variables into the CSS
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
