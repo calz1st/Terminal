@@ -358,10 +358,10 @@ if view == "Home":
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Macro Risk Score</div></div>", unsafe_allow_html=True)
         render_gauge(macro_score, "", theme['text'])
     with col_b:
-        st.markdown("### 🌎 Global Command Center")
+        st.markdown("### 🌎 General Market Outlook")
         if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
             raw_news = ""
-            with st.spinner("Compiling Global Intel..."):
+            with st.spinner("Compiling Intel..."):
                 raw_news = get_rss_news("Global economy stock market inflation central banks")
             st.info("⚡ Synthesizing Macro Outlook...")
             report = generate_report(raw_news, "GLOBAL", api_key)
