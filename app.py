@@ -23,26 +23,40 @@ if 'active_chart' not in st.session_state:
 # --- SIDEBAR & THEME TOGGLE ---
 with st.sidebar:
     st.title("💠 Callums Terminal")
-    st.caption("v16.1 Responsive")
+    st.caption("v16.1 Dark/Light")
     
-    # Theme Toggle
+    # 🟢 THEME TOGGLE BUTTON
+    # This switch controls the entire visual stack
     dark_mode = st.toggle("🌙 Dark Mode", value=True)
     
     # Define Color Palettes
     if dark_mode:
         theme = {
-            "bg": "#0E1117", "text": "#F3F4F6", "card_bg": "#1F2937", 
-            "border": "#374151", "hover": "#374151", "shadow": "rgba(0,0,0,0.3)",
-            "tv_theme": "dark", "tab_active": "#F3F4F6", "tab_inactive": "#9CA3AF"
+            "bg": "#0E1117",            # Main Background
+            "text": "#F3F4F6",          # Main Text
+            "card_bg": "#1F2937",       # Card/Sidebar Background
+            "border": "#374151",        # Borders
+            "hover": "#374151",         # Hover States
+            "shadow": "rgba(0,0,0,0.3)",# Drop Shadows
+            "tv_theme": "dark",         # TradingView Widget Theme
+            "tab_active": "#F3F4F6",    # Active Tab Text
+            "tab_inactive": "#9CA3AF"   # Inactive Tab Text
         }
     else:
         theme = {
-            "bg": "#F3F4F6", "text": "#111827", "card_bg": "#FFFFFF", 
-            "border": "#E5E7EB", "hover": "#F9FAFB", "shadow": "rgba(0,0,0,0.05)",
-            "tv_theme": "light", "tab_active": "#111827", "tab_inactive": "#6B7280"
+            "bg": "#F3F4F6",
+            "text": "#111827",
+            "card_bg": "#FFFFFF",
+            "border": "#E5E7EB",
+            "hover": "#F9FAFB",
+            "shadow": "rgba(0,0,0,0.05)",
+            "tv_theme": "light",
+            "tab_active": "#111827",
+            "tab_inactive": "#6B7280"
         }
 
-# --- 3. RESPONSIVE CSS INJECTION ---
+# --- 3. DYNAMIC CSS INJECTION ---
+# We use f-strings (f"""...""") to insert the python variables into the CSS
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -54,14 +68,13 @@ st.markdown(f"""
             font-family: 'Inter', sans-serif; 
         }}
         
-        /* 2. RESPONSIVE CONTAINER (Fixes "Doesn't fit screen") */
+        /* 2. RESPONSIVE CONTAINER */
         .block-container {{
             padding-top: 2rem !important;
             padding-bottom: 3rem !important;
             padding-left: 2rem !important;
             padding-right: 2rem !important;
         }}
-        /* Mobile Breakpoint */
         @media (max-width: 768px) {{
             .block-container {{
                 padding-left: 0.5rem !important;
@@ -86,31 +99,12 @@ st.markdown(f"""
             color: {theme['text']};
         }}
         
-        /* 5. CUSTOM TICKER GRID (CSS GRID > STREAMLIT COLUMNS) */
+        /* 5. CUSTOM TICKER GRID */
         .ticker-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 10px;
             margin-bottom: 20px;
-        }}
-        .ticker-item {{
-            background-color: {theme['card_bg']};
-            border: 1px solid {theme['border']};
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 13px;
-            font-weight: 600;
-            color: {theme['text']};
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 1px 2px {theme['shadow']};
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }}
-        .ticker-item:hover {{
-            border-color: #9CA3AF;
-            transform: translateY(-2px);
         }}
         
         /* 6. PRIMARY BUTTONS */
@@ -190,23 +184,15 @@ def get_symbol_details(key):
     return icon
 
 def render_ticker_grid(data):
-    # This uses native Streamlit columns but relies on the `st.button` use_container_width=True
-    # to fill the responsive grid. 
-    # For a TRUE responsive grid that changes column count (6 desktop -> 2 mobile), 
-    # we use standard columns but acknowledge they stack on mobile.
-    
     if not data: return
     tv_map = {"BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD", "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF", "CAD": "FX:USDCAD", "AUD": "FX:AUDUSD", "NZD": "FX:NZDUSD", "DXY": "TVC:DXY", "GOLD": "OANDA:XAUUSD", "OIL": "TVC:USOIL", "NVDA": "NASDAQ:NVDA", "TSLA": "NASDAQ:TSLA", "AAPL": "NASDAQ:AAPL", "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"}
     
-    # We use a trick here: On mobile, st.columns(6) is annoying. 
-    # But Streamlit handles stacking automatically on very small screens.
-    # To make it cleaner, we iterate.
     cols = st.columns(6) 
     for i, (key, (price, change)) in enumerate(data.items()):
         icon = get_symbol_details(key)
         arrow = "▲" if change >= 0 else "▼"
         price_str = f"${price:,.0f}" if price > 100 else f"${price:.4f}"
-        label = f"{icon} {key}\n{price_str} {arrow} {change:.2f}%" # Newline for better mobile fitting
+        label = f"{icon} {key}\n{price_str} {arrow} {change:.2f}%"
         
         with cols[i % 6]:
             if st.button(label, key=f"btn_{key}", use_container_width=True):
@@ -230,7 +216,7 @@ def get_macro_fng():
     except: return 50, 0
 
 def render_gauge(value, title, theme_text_color):
-    # Plotly needs to know the theme color for the text
+    # Pass theme color to Plotly
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': theme_text_color}},
         gauge={'axis': {'range': [0, 100]}, 'bar': {'color': theme_text_color}, 
@@ -240,7 +226,7 @@ def render_gauge(value, title, theme_text_color):
     st.plotly_chart(fig, use_container_width=True)
 
 def render_chart(symbol, theme_mode):
-    # Dynamic Widget Theme
+    # Pass theme mode (dark/light) to TradingView
     html = f"""
     <div class="tradingview-widget-container" style="height:500px;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <div id="tradingview_{symbol}" style="height:100%"></div>
@@ -374,6 +360,7 @@ if view == "Bitcoin":
         st.markdown("### Market Sentiment")
         btc_fng = get_crypto_fng()
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{btc_fng}</div><div style='font-size: 12px; color: {theme['text']};'>Fear & Greed Index</div></div>", unsafe_allow_html=True)
+        # Pass theme text color to gauge
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
