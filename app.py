@@ -28,10 +28,10 @@ if 'active_chart' not in st.session_state:
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.4 Matrix/Home")
+    st.caption("v17.6 Matrix Fix")
     
     # 🌗 THEME TOGGLE
-    dark_mode = st.checkbox("🌙 Dark Mode", value=True)
+    dark_mode = st.toggle("🌙 Dark Mode", value=True)
 
     # 🎨 THEME DEFINITIONS
     if dark_mode:
@@ -229,26 +229,31 @@ def get_macro_fng():
         return max(0, min(100, int(score))), round(vix, 2)
     except: return 50, 0
 
-# --- NEW: CORRELATION MATRIX LOGIC ---
+# --- NEW: CORRELATION MATRIX LOGIC (FIXED) ---
 @st.cache_data(ttl=3600)
 def get_correlation_matrix():
-    # We fetch 30 days of data for key assets
-    tickers = {
-        "BTC": "BTC-USD",
-        "SPX": "^GSPC",
-        "GOLD": "GC=F",
-        "OIL": "CL=F",
-        "DXY": "DX-Y.NYB"
+    # 1. Define symbols
+    symbols = ["BTC-USD", "^GSPC", "GC=F", "CL=F", "DX-Y.NYB"]
+    rename_map = {
+        "BTC-USD": "BTC",
+        "^GSPC": "SPX",
+        "GC=F": "GOLD",
+        "CL=F": "OIL",
+        "DX-Y.NYB": "DXY"
     }
     
     try:
-        # Fetch data
-        df = pd.DataFrame()
-        for name, symbol in tickers.items():
-            hist = yf.Ticker(symbol).history(period="30d")['Close']
-            df[name] = hist
+        # 2. Bulk download matches dates automatically
+        df = yf.download(symbols, period="30d")['Close']
         
-        # Calculate Correlation
+        # 3. Rename columns
+        df = df.rename(columns=rename_map)
+        
+        # 4. CRITICAL FIX: Drop weekends/holidays where some markets are closed
+        # If we don't do this, Bitcoin (open weekends) vs Stocks (closed) creates NaNs
+        df = df.dropna()
+        
+        # 5. Calculate correlation
         corr = df.corr()
         return corr
     except:
