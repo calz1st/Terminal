@@ -388,7 +388,7 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Analysing global events")
+    st.markdown("### 🌐Analyse Global Events")
     if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
