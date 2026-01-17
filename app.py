@@ -356,12 +356,12 @@ elif view == "Currencies":
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
         render_gauge(macro_score, "", theme['text'])
     with col_b:
-        st.markdown("💱 FX Strategy")
+        st.markdown("### 💱 FX Strategy")
         if st.button("GENERATE FX OUTLOOK", type="primary"):
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex")
-            st.info("⚡ Synthesizing Analysis...")
+            st.info("### ⚡ Synthesizing Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -369,7 +369,7 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global Threat Matrix")
+    st.markdown("### 🌐 Analysing global events")
     if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
