@@ -14,131 +14,108 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. SESSION STATE & THEME SETUP ---
+# --- 2. SESSION STATE SETUP ---
 if 'active_view' not in st.session_state:
     st.session_state['active_view'] = "Bitcoin" 
 if 'active_chart' not in st.session_state:
     st.session_state['active_chart'] = "COINBASE:BTCUSD"
+if 'dark_mode' not in st.session_state:
+    st.session_state['dark_mode'] = True
 
-# --- SIDEBAR & THEME TOGGLE ---
-with st.sidebar:
-    st.title("💠 Callums Terminal")
-    st.caption("v16.1 Dark/Light")
+# --- 3. THEME LOGIC (LOADED FIRST) ---
+# We put this at the top to ensure variables exist before UI draws
+def set_theme():
+    # Toggle button in sidebar (Primary)
+    with st.sidebar:
+        st.title("💠 Callums Terminal")
+        st.caption("v16.2 Stable")
+        mode = st.checkbox("🌙 Dark Mode", value=st.session_state['dark_mode'], key="sidebar_theme_toggle")
     
-    # 🟢 THEME TOGGLE (Using Checkbox for Compatibility)
-    dark_mode = st.checkbox("🌙 Dark Mode", value=True)
+    # Backup Toggle in Main Area (In case sidebar is hidden/broken)
+    # This ensures you can always see the button.
+    with st.expander("⚙️ Settings & Theme (Click if Sidebar is hidden)", expanded=False):
+        st.write("Use this if you cannot see the sidebar.")
+        mode_backup = st.checkbox("🌙 Enable Dark Mode", value=mode, key="backup_theme_toggle")
+        
+    # Sync states
+    if mode != mode_backup:
+        mode = mode_backup
     
-    # Define Color Palettes
-    if dark_mode:
-        theme = {
-            "bg": "#0E1117",            # Main Background
-            "text": "#F3F4F6",          # Main Text
-            "card_bg": "#1F2937",       # Card/Sidebar Background
-            "border": "#374151",        # Borders
-            "hover": "#374151",         # Hover States
-            "shadow": "rgba(0,0,0,0.3)",# Drop Shadows
-            "tv_theme": "dark",         # TradingView Widget Theme
-            "tab_active": "#F3F4F6",    # Active Tab Text
-            "tab_inactive": "#9CA3AF"   # Inactive Tab Text
+    st.session_state['dark_mode'] = mode
+
+    if mode:
+        return {
+            "bg": "#0E1117", "text": "#F3F4F6", "card_bg": "#1F2937", 
+            "border": "#374151", "shadow": "rgba(0,0,0,0.3)",
+            "tv_theme": "dark", "tab_active": "#F3F4F6", "tab_inactive": "#9CA3AF"
         }
     else:
-        theme = {
-            "bg": "#F3F4F6",
-            "text": "#111827",
-            "card_bg": "#FFFFFF",
-            "border": "#E5E7EB",
-            "hover": "#F9FAFB",
-            "shadow": "rgba(0,0,0,0.05)",
-            "tv_theme": "light",
-            "tab_active": "#111827",
-            "tab_inactive": "#6B7280"
+        return {
+            "bg": "#F3F4F6", "text": "#111827", "card_bg": "#FFFFFF", 
+            "border": "#E5E7EB", "shadow": "rgba(0,0,0,0.05)",
+            "tv_theme": "light", "tab_active": "#111827", "tab_inactive": "#6B7280"
         }
 
-# --- 3. DYNAMIC CSS INJECTION ---
+theme = set_theme()
+
+# --- 4. CSS INJECTION ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         
-        /* 1. GLOBAL RESET & THEME APPLICATION */
-        .stApp {{ 
-            background-color: {theme['bg']}; 
-            color: {theme['text']}; 
-            font-family: 'Inter', sans-serif; 
-        }}
+        /* Global Reset */
+        .stApp {{ background-color: {theme['bg']}; color: {theme['text']}; font-family: 'Inter', sans-serif; }}
         
-        /* 2. RESPONSIVE CONTAINER */
+        /* Mobile-Friendly Container */
         .block-container {{
-            padding-top: 2rem !important;
+            padding-top: 1rem !important;
             padding-bottom: 3rem !important;
-            padding-left: 2rem !important;
-            padding-right: 2rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
         }}
-        @media (max-width: 768px) {{
+        @media (min-width: 768px) {{
             .block-container {{
-                padding-left: 0.5rem !important;
-                padding-right: 0.5rem !important;
+                padding-left: 2rem !important;
+                padding-right: 2rem !important;
             }}
         }}
-        
-        /* 3. SIDEBAR STYLING */
+
+        /* Sidebar Styling */
         [data-testid="stSidebar"] {{ 
             background-color: {theme['card_bg']}; 
             border-right: 1px solid {theme['border']};
         }}
-        
-        /* 4. TYPOGRAPHY */
-        h1, h2, h3 {{ 
-            font-family: 'Inter', sans-serif;
-            color: {theme['text']} !important; 
-            font-weight: 700; 
-            letter-spacing: -0.5px;
+        [data-testid="stSidebar"] * {{
+            color: {theme['text']} !important;
         }}
-        p, div, span {{
+
+        /* Typography */
+        h1, h2, h3, p, span, div {{ color: {theme['text']}; }}
+        
+        /* Buttons */
+        div.stButton > button {{
+            background-color: {theme['card_bg']};
             color: {theme['text']};
+            border: 1px solid {theme['border']};
+            border-radius: 8px;
         }}
-        
-        /* 5. CUSTOM TICKER GRID */
-        .ticker-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }}
-        
-        /* 6. PRIMARY BUTTONS */
         button[kind="primary"] {{
             background-color: {theme['text']} !important;
             color: {theme['bg']} !important;
             border: none;
         }}
-        
-        /* 7. CARDS */
+
+        /* Cards */
         .terminal-card {{
             background-color: {theme['card_bg']}; 
             border: 1px solid {theme['border']}; 
             border-radius: 12px;
-            padding: 24px; 
-            margin-bottom: 20px;
+            padding: 20px; 
+            margin-bottom: 15px;
             box-shadow: 0 4px 6px -1px {theme['shadow']};
         }}
         
-        /* 8. TABS */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 20px;
-            border-bottom: 1px solid {theme['border']};
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            height: 50px;
-            background-color: transparent;
-            color: {theme['tab_inactive']};
-            font-weight: 600;
-        }}
-        .stTabs [aria-selected="true"] {{
-            color: {theme['tab_active']};
-            border-bottom: 2px solid {theme['tab_active']};
-        }}
-        
-        /* 9. METRICS */
+        /* Metrics */
         .metric-val {{
             font-family: 'JetBrains Mono', monospace;
             font-size: 24px;
@@ -148,7 +125,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. DATA & LOGIC ---
+# --- 5. DATA FUNCTIONS ---
 
 @st.cache_data(ttl=60)
 def get_market_data(tickers_dict):
@@ -185,6 +162,7 @@ def render_ticker_grid(data):
     if not data: return
     tv_map = {"BTC": "COINBASE:BTCUSD", "ETH": "COINBASE:ETHUSD", "SOL": "COINBASE:SOLUSD", "EUR": "FX:EURUSD", "GBP": "FX:GBPUSD", "JPY": "FX:USDJPY", "CHF": "FX:USDCHF", "CAD": "FX:USDCAD", "AUD": "FX:AUDUSD", "NZD": "FX:NZDUSD", "DXY": "TVC:DXY", "GOLD": "OANDA:XAUUSD", "OIL": "TVC:USOIL", "NVDA": "NASDAQ:NVDA", "TSLA": "NASDAQ:TSLA", "AAPL": "NASDAQ:AAPL", "SPX": "OANDA:SPX500USD", "NDX": "OANDA:NAS100USD"}
     
+    # Responsive Grid Strategy
     cols = st.columns(6) 
     for i, (key, (price, change)) in enumerate(data.items()):
         icon = get_symbol_details(key)
@@ -214,7 +192,6 @@ def get_macro_fng():
     except: return 50, 0
 
 def render_gauge(value, title, theme_text_color):
-    # Pass theme color to Plotly
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=value, title={'text': title, 'font': {'size': 14, 'color': theme_text_color}},
         gauge={'axis': {'range': [0, 100]}, 'bar': {'color': theme_text_color}, 
@@ -224,7 +201,6 @@ def render_gauge(value, title, theme_text_color):
     st.plotly_chart(fig, use_container_width=True)
 
 def render_chart(symbol, theme_mode):
-    # Pass theme mode (dark/light) to TradingView
     html = f"""
     <div class="tradingview-widget-container" style="height:500px;border-radius:12px;overflow:hidden;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <div id="tradingview_{symbol}" style="height:100%"></div>
@@ -245,7 +221,7 @@ def render_economic_calendar(timezone_id):
     """
     components.html(html, height=600)
 
-# --- 5. AI ENGINE ---
+# --- 6. AI ENGINE ---
 @st.cache_data(ttl=600) 
 def get_rss_news(query):
     try:
@@ -299,7 +275,7 @@ def generate_report(data_dump, mode, api_key):
         return r.json()['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ") if 'candidates' in r.json() else f"❌ Error: {r.json().get('error', {}).get('message', 'Unknown')}"
     except Exception as e: return f"System Error: {str(e)}"
 
-# --- 6. SIDEBAR CONTINUED ---
+# --- 7. SIDEBAR EXTRAS ---
 with st.sidebar:
     st.markdown(f"<div style='font-family: JetBrains Mono; font-size: 12px; color: {theme['text']}; margin-bottom: 20px;'>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
@@ -313,7 +289,6 @@ with st.sidebar:
             api_key = st.text_input("Enter API Key", type="password")
     except:
         api_key = st.text_input("Enter API Key", type="password")
-    
     if api_key: api_key = api_key.strip()
     
     st.markdown("---")
@@ -321,7 +296,7 @@ with st.sidebar:
     tz_map = {"London (GMT)": 15, "New York (EST)": 8, "Tokyo (JST)": 18}
     selected_tz = st.selectbox("Timezone:", list(tz_map.keys()), index=0)
 
-# --- 7. MAIN DASHBOARD ---
+# --- 8. MAIN DASHBOARD ---
 st.markdown("## 🖥️ MARKET OVERVIEW")
 
 col_sel, col_space = st.columns([1, 2])
@@ -358,7 +333,6 @@ if view == "Bitcoin":
         st.markdown("### Market Sentiment")
         btc_fng = get_crypto_fng()
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{btc_fng}</div><div style='font-size: 12px; color: {theme['text']};'>Fear & Greed Index</div></div>", unsafe_allow_html=True)
-        # Pass theme text color to gauge
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
@@ -415,7 +389,6 @@ elif view == "Charts":
     col1, col2 = st.columns([3, 1])
     with col1:
         st.subheader(f"{st.session_state['active_chart']}")
-        # Pass theme to chart renderer
         render_chart(st.session_state['active_chart'], theme['tv_theme'])
     with col2:
         asset_map = {
