@@ -23,12 +23,14 @@ if 'active_view' not in st.session_state:
     st.session_state['active_view'] = "Home" 
 if 'active_chart' not in st.session_state:
     st.session_state['active_chart'] = "COINBASE:BTCUSD"
+if 'chat_history' not in st.session_state:
+    st.session_state['chat_history'] = []
 
 # --- 3. SIDEBAR & THEME CONTROL ---
 with st.sidebar:
     st.markdown("""<div style='margin-bottom: 20px;'><span class='status-dot'></span><span style='font-size: 14px; font-weight: 600; color: #059669;'>SYSTEM ONLINE</span></div>""", unsafe_allow_html=True)
     st.title("💠 Callums Terminal")
-    st.caption("v17.7 Update")
+    st.caption("v18.0 AI Assistant")
     
     # 🌗 THEME TOGGLE
     dark_mode = st.toggle("🌙 Dark Mode", value=True)
@@ -141,6 +143,13 @@ st.markdown(f"""
             padding: 24px; 
             margin-bottom: 20px;
         }}
+
+        /* Chat Styling */
+        .stChatMessage {{
+            background-color: {theme['card']} !important;
+            border: 1px solid {theme['border']} !important;
+            border-radius: 12px;
+        }}
         
         /* 5. METRICS */
         .status-dot {{
@@ -224,24 +233,19 @@ def get_crypto_fng():
 @st.cache_data(ttl=300)
 def get_macro_fng():
     try:
-        # We need this for the VIX widget
         hist = yf.Ticker("^VIX").history(period="5d")
         vix_now = hist['Close'].iloc[-1]
         vix_prev = hist['Close'].iloc[-2]
         change_pct = ((vix_now - vix_prev) / vix_prev) * 100
-        
         score = 100 - ((vix_now - 10) * 3)
         return max(0, min(100, int(score))), round(vix_now, 2), round(change_pct, 2)
     except: return 50, 0, 0
 
-# --- NEW: REACT-STYLE MARKET VITALS COMPONENT ---
+# --- MARKET VITALS ---
 def render_market_vitals_widget(vix, vix_change):
-    # Determine dynamic colors for VIX
-    vix_color = "text-green-400" if vix_change < 0 else "text-red-400" # VIX down is Good (Green)
+    vix_color = "text-green-400" if vix_change < 0 else "text-red-400"
     arrow = "▼" if vix_change < 0 else "▲"
     
-    # We construct the HTML to look exactly like your React component
-    # We include the Tailwind CDN so the classes work
     html_code = f"""
     <!DOCTYPE html>
     <html>
@@ -249,49 +253,43 @@ def render_market_vitals_widget(vix, vix_change):
       <script src="https://cdn.tailwindcss.com"></script>
       <style>
         body {{ background-color: transparent; margin: 0; padding: 2px; }}
-        /* Force font to match Streamlit */
         .font-sans {{ font-family: 'Inter', sans-serif; }}
         .font-mono {{ font-family: 'JetBrains Mono', monospace; }}
       </style>
     </head>
     <body>
       <div class="grid grid-cols-2 gap-4 bg-slate-900 p-4 rounded-lg border border-slate-700 font-sans shadow-lg">
-        
         <div class="flex flex-col">
           <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Fear (VIX)</span>
           <div class="text-xl font-mono text-white mt-1">
             {vix} <span class="text-sm {vix_color}">{arrow} {abs(vix_change)}%</span>
           </div>
         </div>
-        
         <div class="flex flex-col border-l border-slate-700 pl-4">
           <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Options PCR</span>
           <div class="text-xl font-mono text-white mt-1">
             0.85 <span class="text-sm text-blue-400">Neutral</span>
           </div>
         </div>
-
         <div class="flex flex-col border-t border-slate-700 pt-4">
           <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Net Exch. Flow</span>
           <div class="text-xl font-mono text-red-400 mt-1">
             +$210M <span class="text-xs text-slate-500 block italic">Selling Pressure</span>
           </div>
         </div>
-
         <div class="flex flex-col border-l border-t border-slate-700 pl-4 pt-4">
           <span class="text-xs text-slate-400 uppercase tracking-widest font-bold">Kimchi Prem.</span>
           <div class="text-xl font-mono text-white mt-1">
             +1.2% <span class="text-sm text-green-400">Low Risk</span>
           </div>
         </div>
-
       </div>
     </body>
     </html>
     """
     components.html(html_code, height=180)
 
-# --- CORRELATION MATRIX LOGIC ---
+# --- CORRELATION MATRIX ---
 @st.cache_data(ttl=3600)
 def get_correlation_matrix():
     symbols = ["BTC-USD", "^GSPC", "GC=F", "CL=F", "DX-Y.NYB"]
@@ -401,6 +399,44 @@ def generate_report(data_dump, mode, api_key):
         return r.json()['candidates'][0]['content']['parts'][0]['text'].replace("$","USD ") if 'candidates' in r.json() else f"❌ Error: {r.json().get('error', {}).get('message', 'Unknown')}"
     except Exception as e: return f"System Error: {str(e)}"
 
+# --- NEW: CHAT ASSISTANT LOGIC ---
+def chat_with_reports(user_msg, api_key):
+    if not api_key: return "⚠️ Please enter API Key in sidebar."
+    
+    # 1. Gather Context from generated reports
+    context_text = ""
+    if 'global_rep' in st.session_state: context_text += f"GLOBAL REPORT:\n{st.session_state['global_rep']}\n\n"
+    if 'btc_rep' in st.session_state: context_text += f"BITCOIN REPORT:\n{st.session_state['btc_rep']}\n\n"
+    if 'fx_rep' in st.session_state: context_text += f"FX REPORT:\n{st.session_state['fx_rep']}\n\n"
+    if 'geo_rep' in st.session_state: context_text += f"GEOPOLITICS REPORT:\n{st.session_state['geo_rep']}\n\n"
+    
+    if not context_text:
+        return "ℹ️ No reports generated yet. Please generate a report in the other tabs first so I have data to discuss!"
+
+    clean_key = api_key.strip()
+    active_model, status = resolve_best_model(clean_key)
+    if not active_model: return f"❌ Error: {status}"
+    
+    # 2. Construct Prompt
+    system_prompt = f"""
+    You are the Terminal AI Assistant. You have access to the following reports generated by the system:
+    
+    {context_text}
+    
+    USER QUESTION: {user_msg}
+    
+    TASK: Answer the user's question specifically using the data from the reports above. Be concise, professional, and strategic. 
+    If the answer isn't in the reports, say so.
+    """
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{active_model}:generateContent?key={clean_key}"
+    payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
+    headers = {'Content-Type': 'application/json'}
+    
+    try:
+        r = requests.post(url, headers=headers, json=payload)
+        return r.json()['candidates'][0]['content']['parts'][0]['text'] if 'candidates' in r.json() else "❌ AI Error"
+    except Exception as e: return f"System Error: {str(e)}"
 
 # --- 7. MAIN DASHBOARD ---
 st.markdown("## 🖥️ MARKET OVERVIEW")
@@ -423,8 +459,8 @@ render_ticker_grid(market_data)
 
 st.write("") 
 
-# Navigation
-nav_options = ["Home", "Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
+# Navigation (ADDED "Assistant")
+nav_options = ["Home", "Assistant", "Bitcoin", "Currencies", "Geopolitics", "Calendar", "Charts"]
 cols = st.columns(len(nav_options))
 for i, option in enumerate(nav_options):
     if cols[i].button(option, use_container_width=True, type="primary" if st.session_state['active_view'] == option else "secondary"):
@@ -440,21 +476,17 @@ if view == "Home":
     col_a, col_b = st.columns([1, 2])
     with col_a:
         st.markdown("### 📡 Market Vitals")
-        # GET VIX DATA
         _, vix_val, vix_chg = get_macro_fng()
-        # RENDER NEW WIDGET
         render_market_vitals_widget(vix_val, vix_chg)
         
     with col_b:
         st.markdown("### 🧬 Asset Correlation")
-        # RENDER CORRELATION MATRIX (Moved to Col B)
         corr_matrix = get_correlation_matrix()
         render_correlation_matrix(corr_matrix, theme['text'])
     
-    # Global Briefing below both
     st.write("")
-    st.markdown("### 🌎 General Market Outlook")
-    if st.button("Generate Report", type="primary"):
+    st.markdown("### 🌎 Global Command Center")
+    if st.button("GENERATE EXECUTIVE BRIEFING", type="primary"):
         raw_news = ""
         with st.spinner("Compiling Global Intel..."):
             raw_news = get_rss_news("Global economy stock market inflation central banks")
@@ -465,6 +497,30 @@ if view == "Home":
     if 'global_rep' in st.session_state:
         st.markdown(f'<div class="terminal-card">{st.session_state["global_rep"]}</div>', unsafe_allow_html=True)
 
+# --- NEW: ASSISTANT TAB ---
+elif view == "Assistant":
+    st.markdown("### 🤖 Terminal AI Assistant")
+    st.caption("Ask questions about any generated report (Bitcoin, FX, Global, etc.)")
+    
+    # Display Chat History
+    for msg in st.session_state['chat_history']:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            
+    # Input Area
+    if prompt := st.chat_input("Ask about the markets..."):
+        # 1. Add User Message
+        st.session_state['chat_history'].append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        # 2. Get AI Response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = chat_with_reports(prompt, api_key)
+                st.markdown(response)
+                st.session_state['chat_history'].append({"role": "assistant", "content": response})
+
 elif view == "Bitcoin":
     col_a, col_b = st.columns([1, 2])
     with col_a:
@@ -474,8 +530,8 @@ elif view == "Bitcoin":
         render_gauge(btc_fng, "", theme['text'])
         
     with col_b:
-        st.markdown("### 📡 Bitcoin Briefing")
-        if st.button("Generate Report", type="primary"):
+        st.markdown("### 📡 Deep-Dive Briefing")
+        if st.button("GENERATE REPORT", type="primary"):
             raw_news = ""
             with st.spinner("Scanning Institutional Feeds..."):
                 raw_news = get_rss_news("Bitcoin crypto market ETF on-chain")
@@ -496,12 +552,12 @@ elif view == "Currencies":
         st.markdown(f"<div class='terminal-card' style='text-align: center;'><div class='metric-val'>{macro_score}</div><div style='font-size: 12px; color: {theme['text']};'>Risk Appetite Score</div></div>", unsafe_allow_html=True)
         render_gauge(macro_score, "", theme['text'])
     with col_b:
-        st.markdown("### 💱 FX Strategy")
-        if st.button("Generate Report", type="primary"):
+        st.markdown("### 💱 FX Strategy Desk")
+        if st.button("GENERATE FX OUTLOOK", type="primary"):
             raw_news = ""
             with st.spinner("Aggregating Central Bank Data..."):
                 raw_news += get_rss_news("EURUSD GBPUSD USDJPY AUDUSD USDCAD forex central bank")
-            st.info("⚡ Synthesizing Analysis...")
+            st.info("⚡ Synthesizing 7-Pair Analysis...")
             report = generate_report(raw_news, "FX", api_key)
             st.session_state['fx_rep'] = report
             st.rerun()
@@ -509,8 +565,8 @@ elif view == "Currencies":
             st.markdown(f'<div class="terminal-card">{st.session_state["fx_rep"]}</div>', unsafe_allow_html=True)
 
 elif view == "Geopolitics":
-    st.markdown("### 🌐 Global Data")
-    if st.button("Run Data Scan", type="primary"):
+    st.markdown("### 🌐 Global Threat Matrix")
+    if st.button("RUN INTEL SCAN", type="primary"):
         raw_news = ""
         with st.spinner("Parsing Classified Wires..."):
             raw_news += get_rss_news("Geopolitics War Oil Gold Economy sanctions")
